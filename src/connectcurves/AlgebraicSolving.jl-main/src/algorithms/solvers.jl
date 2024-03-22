@@ -151,6 +151,7 @@ function _core_msolve(
                                           rat_param[3], rat_param[4])
     if jl_nb_sols == 0
         I.real_sols = QQFieldElem[]
+        I.inter_sols = QQFieldElem[]
         return rat_param, Vector{QQFieldElem}[]
     end
 		
@@ -419,7 +420,7 @@ function inter_solutions(
         precision::Int=32                     # precision of the solution set
         )
 
-    isdefined(I, :real_sols) ||
+    isdefined(I, :inter_sols) ||
     _core_msolve(I,
                  initial_hts = initial_hts,
                  nr_thrds = nr_thrds,

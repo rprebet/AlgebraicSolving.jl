@@ -3,7 +3,7 @@ function poly_to_usolve_in(f, finput="/tmp/in.us")
 
 		fc = coefficients_of_univariate(f)
     s = string(length(fc)-1, "\n")
-    M = ["$(Nemo.ZZ(fc[i]))" for i in 1:length(fc)]
+    M = ["$(ZZ(fc[i]))" for i in 1:length(fc)]
     s *= join(M, '\n')
    
     ff = open(finput, "w")
@@ -17,7 +17,7 @@ function usolve_out_to_inter(foutput="/tmp/out.us")
 end
 
 function tuple_to_inter(Ls)
-	return [ [ls[1]//Nemo.QQ(2)^(ls[2]), (ls[1]+1)//Nemo.QQ(2)^(ls[2])] for ls in Ls ]
+	return [ [ls[1]//QQ(2)^(ls[2]), (ls[1]+1)//QQ(2)^(ls[2])] for ls in Ls ]
 end
 	
 function usolve_out_to_tuple(foutput="/tmp/out.us")
@@ -25,7 +25,7 @@ function usolve_out_to_tuple(foutput="/tmp/out.us")
 	s = read(ff, String)
 	Ls = split(s, "\n")[1:end-1]
 	Ls = [ split(ls, " ") for ls in Ls[2:end] ]
-	return [ [eval(Meta.parse("Nemo.ZZ($l)")) for l in ls] for ls in Ls ]
+	return [ [eval(Meta.parse("ZZ($l)")) for l in ls] for ls in Ls ]
 end
 
 function tuple_to_usolve_out(Ls, foutput="/tmp/out.us")
@@ -59,5 +59,5 @@ end
 	
 	
 #using Nemo
-#R, (x,y) = Nemo.polynomial_ring(Nemo.ZZ, [:x,:y])
+#R, (x,y) = polynomial_ring(ZZ, [:x,:y])
 #f = x^2+5*x-4
