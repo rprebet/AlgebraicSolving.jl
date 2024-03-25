@@ -142,7 +142,9 @@ function _core_msolve(
 
     jl_vnames = Base.unsafe_wrap(Array, res_vnames[], jl_rp_nr_vars)
 
-    vsymbols = [Symbol(unsafe_string(jl_vnames[i])) for i in 1:jl_rp_nr_vars]
+    vsymbols  = [Symbol(unsafe_string(jl_vnames[i])) for i in 1:jl_rp_nr_vars]
+    #= get possible variable permutation =#
+    perm      = sortperm(vsymbols[1:nr_vars])
 
     rat_param = _get_rational_parametrization(jl_ld, jl_len,
                                               jl_cf, jl_cf_lf, jl_rp_nr_vars)
@@ -180,8 +182,8 @@ function _core_msolve(
             inter_tmp_coeff = Vector{QQFieldElem}(undef, 2)
             inter_tmp_coeff[1] = QQFieldElem(unsafe_load(jl_sols_num, i)) >> Int64(unsafe_load(jl_sols_den, i))
             inter_tmp_coeff[2] = QQFieldElem(unsafe_load(jl_sols_num, i+1)) >> Int64(unsafe_load(jl_sols_den, i+1))
-            inter_tmp[j] = inter_tmp_coeff
-            tmp[j] = sum(inter_tmp_coeff) >> 1
+            inter_tmp[perm[j]] = inter_tmp_coeff
+            tmp[perm[j]] = sum(inter_tmp_coeff) >> 1
             i += 2
             j += 1
         end
