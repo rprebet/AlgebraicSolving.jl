@@ -92,7 +92,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
 end
 
 #Bivariate subresultants
-function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx) where T <: RingElement
+function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false) where T <: RingElement
     LPQ = map(poly_to_array, [P,Q])
     ULPQ = [ parray_asvar(lpq, idx) for lpq in LPQ ]
 
@@ -106,15 +106,31 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx) where T <:
     # Get it back to initial polynomial ring
     Lsr = [ [collect(coefficients(csr)) for csr in coefficients(sr)] for sr in sr]
     newsr = []
-    for lsr in Lsr
-        mlsr = [[],[]]
-        for i in 1:length(lsr)
-            for j in 1:length(lsr[i])
-                push!(mlsr[1], lsr[i][j])
-                push!(mlsr[2],add_ind([j-1],idx, i-1))
+    if list
+        for lsr in Lsr
+            mlsr = []
+            for i in 1:length(lsr)
+                tmp = [[],[]]
+                for j in 1:length(lsr[i])
+                    push!(tmp[1], lsr[i][j])
+                    push!(tmp[2],add_ind([j-1],idx, 0))
+                end
+                push!(mlsr, tmp)
             end
+            mlsr = [ array_to_poly(tmp, parent(P)) for tmp in mlsr ]
+            push!(newsr, mlsr)
         end
-        push!(newsr, array_to_poly(mlsr, parent(P)))
+    else
+        for lsr in Lsr
+            mlsr = [[],[]]
+            for i in 1:length(lsr)
+                for j in 1:length(lsr[i])
+                    push!(mlsr[1], lsr[i][j])
+                    push!(mlsr[2],add_ind([j-1],idx, i-1))
+                end
+            end
+            push!(newsr, array_to_poly(mlsr, parent(P)))
+        end
     end
 
     return newsr
