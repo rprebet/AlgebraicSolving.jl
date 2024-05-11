@@ -80,5 +80,3 @@ end
 #f = x^7+y^2*x^5-2*x*y^3+1+y^6
 #f = (x^2+y^2-1)*(2*x-y)
 #Sr = subresultants_seq_biv(f, 1)
-
-
