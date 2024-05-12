@@ -138,10 +138,10 @@ function plot_graph_comp(V, CE)
 end
 
 ## Graph functions
-function connected_components_bis(edges)
+function connected_components(vert, edges)
     adj_list = Dict{Int, Vector{Int}}()
     visited = Set{Int}()
-    components = Vector{Vector{Tuple{Int, Int}}}()
+    components = Vector{Vector{Int}}()
 
     # Build adjacency list
     for (i, j) in edges
@@ -149,18 +149,13 @@ function connected_components_bis(edges)
         push!(get!(adj_list, j, []), i)
     end
 
-    # Breadth-first search
-    function bfs(node, component)
-        queue = [node]
+    # Depth-first search
+    function dfs(node, component)
         push!(visited, node)
-        while !isempty(queue)
-            current = popfirst!(queue)
-            for neighbor in adj_list[current]
-                if !(neighbor in visited)
-                    push!(visited, neighbor)
-                    push!(component, (current, neighbor))
-                    push!(queue, neighbor)
-                end
+        push!(component, node)
+        for neighbor in adj_list[node]
+            if !(neighbor in visited)
+                dfs(neighbor, component)
             end
         end
     end
@@ -168,34 +163,56 @@ function connected_components_bis(edges)
     # Find connected components
     for node in keys(adj_list)
         if !(node in visited)
-            component = Vector{Tuple{Int, Int}}()
-            bfs(node, component)
+            component = Vector{Int}()
+            dfs(node, component)
             push!(components, component)
         end
     end
 
-    return components
+    # Group edges by connected component
+    grouped_edges = [Tuple{Int, Int}[] for _ in components]
+    for (idx, component) in enumerate(components)
+        for node in component
+            for neighbor in adj_list[node]
+                if neighbor > node && neighbor in component
+                    push!(grouped_edges[idx], (node, neighbor))
+                end
+            end
+        end
+    end
+
+    grouped_vert = [ [ vert[cv] for cv in c ] for c in components ]
+    return grouped_vert, grouped_edges
 end
 
 # Generic change of variables
 changemat = [1 0; 0 1]
-#changemat = rand(-100:100, 2, 2)
+changemat = rand(-100:100, 2, 2)
 invchangemat = inv(changemat)
 f = evaluate(f, collect(changemat*[x; y]));
 
 println("\nCompute parametrization of critical pts...")
 @time begin
 sr = subresultants(f, derivative(f,y),2, list=true);
-# Take the deg>0 sqfree factors of the resultant and order by multiplicity
-# TODO : group by multiplicity
+# Take sqfree factors of the resultant
 sqr = collect(factor_squarefree(sr[1][1]))
+# Keep only deg>0 factors 
+filter(t->t[2]>0, sqr)
+# Order by multiplicity
+sqr = sort(sqr, by=t->t[2])
+# Group by multiplicity
+group_sqr = [ [R(1),i] for i in 1:sqr[end][2] ]
+for r in sqr
+    group_sqr[r[2]][1] *= r[1]
+end
 # Construct the parametrization of the critical points
-params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in sqr ];
+params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in group_sqr ];
 end
 
 ###############
-precx = 150;
+precx = 200;
 ###############
+# TODO : check that no overlap between different isolations
 println("\nIsolating critical values at precision ", precx,"..")
 @time begin
 xcrit = [ isolate(first(p), prec=precx) for p in params ]
@@ -229,9 +246,10 @@ for i in eachindex(LBcrit)
         flag = false
         for j in eachindex(LBcrit[i])
             print("mult=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
-            pcside = intersect_box(f, LBcrit[i][j], prec=precx)
+            pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
             npcside = [length(n) for (I, n) in pcside]
             if i == 1 && sum(npcside) > 2
+                print((i,j)," ",npcside)
                 precxtmp *= 2
                 println("\nRefine extreme boxes along x-axis to precision ", precxtmp)
                 refine_xboxes(params[1][1], LBcrit[1], precxtmp)
@@ -412,8 +430,8 @@ end
 #plot_graph(Vert, EdgPlot)
 #gui()
 
-CEdg = connected_components_bis(Edg);
+CVert, CEdg = connected_components(Vert, Edg);
 
-println("\n## The curve has ", length(CEdg), " connected components ##")
+println("\n## Lifted curve has ", length(CVert), " connected components ##")
 
 #plot_graph_comp(Vert,CEdg)
