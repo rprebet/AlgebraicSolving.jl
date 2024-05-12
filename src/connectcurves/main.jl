@@ -187,8 +187,7 @@ end
 
 # Generic change of variables
 changemat = [1 0; 0 1]
-changemat = rand(-100:100, 2, 2)
-invchangemat = inv(changemat)
+changemat = rand(-500:500, 2, 2)
 f = evaluate(f, collect(changemat*[x; y]));
 
 println("\nCompute parametrization of critical pts...")
