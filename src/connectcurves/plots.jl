@@ -1,3 +1,4 @@
+
 ## Plot functions
 function plot_graph(V, E)
     println("Plotting the graph")

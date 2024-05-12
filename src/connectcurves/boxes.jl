@@ -52,7 +52,7 @@ end
 
 function refine_xboxes(f, LB, prec)
     # Implementation of refine_xboxes function goes here
-    xnew = isolate(f, prec=prec)[2]
+    xnew = isolate(f, prec=prec)
     for i in eachindex(LB)
 		  LB[i] = [ xnew[i], LB[i][2] ]
     end

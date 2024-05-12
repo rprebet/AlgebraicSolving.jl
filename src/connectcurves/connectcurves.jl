@@ -3,7 +3,7 @@
 #using Plots, Colors
 #pythonplot()
 
-export compute_graph
+export compute_graph, connected_components, number_connected_components
 
 include("tools.jl")
 include("subresultants.jl")
@@ -18,7 +18,7 @@ function compute_graph(f; generic=false, precx = 100)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
-        changemat = rand(-500:500, 2, 2)
+        changemat = map(QQ,rand(-500:500, 2, 2))
     end
     f = evaluate(f, collect(changemat*[x; y]));
 
@@ -44,15 +44,14 @@ function compute_graph(f; generic=false, precx = 100)
     println("\nIsolating critical values at precision ", precx,"..")
     @time begin
     xcrit = [ isolate(first(p), prec=precx) for p in params ]
-    xcrit_usolve = getindex.(xcrit, 1)
-    xcrit = getindex.(xcrit, 2)
     _, xcritpermut = order_permut2d(xcrit);
     end
 
     println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
     @time begin
-    RR = ArbField(max(precx,150))
-    Pcrit = [ [ [xc, evaluate_Arb(params[i][2], xc[1])/evaluate_Arb(params[i][3],xc[1])] for xc in xcrit[i]] for i in eachindex(xcrit) ]
+    #RR = ArbField(max(precx,150))
+    precArb = max(precx,150)
+    Pcrit = [ [ [xc, evaluate_Arb(params[i][2], xc[1], precArb)/evaluate_Arb(params[i][3],xc[1],precArb)] for xc in xcrit[i]] for i in eachindex(xcrit) ]
     LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
     end
 
@@ -136,19 +135,15 @@ function compute_graph(f; generic=false, precx = 100)
     end
     end
 
-    #print("\nGraph computation :")
-    #@time begin
+    println("Graph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
     # And even remove this fiber for the graph
     Vert = []
     Edg = []
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
     Viso = []
-    ite = 1
 
     for ind in 1:length(xcritpermut)
-        global ite
-        local i
         i, j = xcritpermut[ind]
 
         if ind > 1
@@ -177,8 +172,7 @@ function compute_graph(f; generic=false, precx = 100)
         else
             for k in 1:length(I[1])
                 push!(Vert, [xcrit[i][j][1], sum(I[1][k])//2])
-                push!(Corr[i][j][1], ite)
-                ite += 1
+                push!(Corr[i][j][1], length(Vert))
             end
         end
         ###########################
@@ -186,25 +180,24 @@ function compute_graph(f; generic=false, precx = 100)
         if ind < length(xcritpermut)
             for k in 1:length(I[2])
                 push!(Vert, [(xcrit[i][j][2] + xcrit[i2][j2][1])//2, sum(I[2][k] + I2L[k])//4])
-                push!(Corr[i][j][3], ite)
-                ite += 1
+                push!(Corr[i][j][3], length(Vert))
             end
         else
             for k in 1:length(I[2])
                 push!(Vert, [xcrit[i][j][2], sum(I[2][k])//2])
-                push!(Corr[i][j][3], ite)
-                ite += 1
+                push!(Corr[i][j][3], length(Vert))
             end
         end
         ###########################
         # Below the critical point
-
+        #println()
+        #println(map(length,I))
+        #println(vcat(nI[1], nI[2], [length(I[1])+1]))
         for k in 1:ymincrit-1
             push!(Vert, [xcmid, sum(I[1][k] + I[2][k])// 4])
-            push!(Corr[i][j][2][1], ite)
-            push!(Edg, [Corr[i][j][1][k], ite])  # left
-            push!(Edg, [ite, Corr[i][j][3][k]])  # right
-            ite += 1
+            push!(Corr[i][j][2][1], length(Vert))
+            push!(Edg, [Corr[i][j][1][k], length(Vert)])  # left
+            push!(Edg, [length(Vert), Corr[i][j][3][k]])  # right
         end
         ###########################
         # The critical point
@@ -214,10 +207,9 @@ function compute_graph(f; generic=false, precx = 100)
             #pass
             # We can add the isolated  vertex
             # push!(Vert, Pcrit[i][j])
-            # push!(Corr[i][j][2][1], ite)
+            # push!(Corr[i][j][2][1], length(Vert))
             # We will subsequently add the vertex in the graph
-            # push!(Viso, ite)
-            # ite += 1
+            # push!(Viso, length(Vert))
         ############################################
         ## TO BE REPLACED BY APPSING IDENTIFICATOR ##
         ## works for space curves without nodes   ##
@@ -230,36 +222,35 @@ function compute_graph(f; generic=false, precx = 100)
         else
             # We can add the vertex
             push!(Vert, [xcmid, ycmid])
-            push!(Corr[i][j][2][2], ite)
+            push!(Corr[i][j][2][2], length(Vert))
             # We connect to the vertical left side of the critical box
             for k in nI[1]
-                push!(Edg, [Corr[i][j][1][k], ite])
+                push!(Edg, [Corr[i][j][1][k], length(Vert)])
             end
             # We connect to the vertical right side of the critical box
             for k in nI[2]
-                push!(Edg, [ite, Corr[i][j][3][k]])
+                push!(Edg, [length(Vert), Corr[i][j][3][k]])
             end
-            ite += 1
         end
         ###########################
         # Above the critical point
         for k=(length(I[1]) - length(nI[1]) - ymincrit+1):-1:1
             push!(Vert, [xcmid, sum(I[1][end - k + 1] + I[2][end - k + 1])//4])
-            push!(Corr[i][j][2][3], ite)
-            push!(Edg, [Corr[i][j][1][end - k + 1], ite])  # left
-            push!(Edg, [ite, Corr[i][j][3][end - k + 1]])  # right
-            ite += 1
+            push!(Corr[i][j][2][3], length(Vert))
+            push!(Edg, [Corr[i][j][1][end - k + 1], length(Vert)])  # left
+            push!(Edg, [length(Vert), Corr[i][j][3][end - k + 1]])  # right
         end
     end
-    #end
 
     #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
     #plot_graph(Vert, EdgPlot)
     #gui()
 
-    CVert, CEdg = connected_components(Vert, Edg);
-
-    println("\n## Lifted curve has ", length(CVert), " connected components ##")
-
     #plot_graph_comp(Vert,CEdg)
+    # Operate inverse change of variable if necessary
+    if !(generic)
+        Vert = [ map(QQ,v) for v in Vert ]
+    end
+    
+    return Vert, Edg
 end

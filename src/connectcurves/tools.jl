@@ -15,13 +15,13 @@ function Arb_to_rat(x)
 	return map(simplest_rational_inside, [x-2*r, x+2*r])
 end
 
-function rat_to_Arb(x)
+function rat_to_Arb(x, prec)
     x1,x2 = x
-    xm, xd = RR((x1+x2)/2), RR(x2-x1)
+    xm, xd = ArbField(prec)((x1+x2)/2), ArbField(prec)(x2-x1)
     return ball(xm,xd)
 end
 
-function evaluate_Arb(f, x)
+function evaluate_Arb(f, x, prec)
 	cf = coefficients_of_univariate(f)
-	return evalpoly(RR(x), cf) 
+	return evalpoly(ArbField(prec)(x), cf) 
 end

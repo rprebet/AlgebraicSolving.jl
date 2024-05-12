@@ -1,6 +1,11 @@
+## TODO : deal with isolated vertices (not appearing in the edges)
+############################
 
-## Graph functions
-function connected_components(vert, edges)
+function connected_components(G)
+    # Group the vert and edges w.r.t the connected components they belong to
+    ###########
+    vert, edges = G
+
     adj_list = Dict{Int, Vector{Int}}()
     visited = Set{Int}()
     components = Vector{Vector{Int}}()
@@ -45,4 +50,8 @@ function connected_components(vert, edges)
 
     grouped_vert = [ [ vert[cv] for cv in c ] for c in components ]
     return grouped_vert, grouped_edges
+end
+
+function number_connected_components(G)
+    return length(first(connected_components(G)))
 end

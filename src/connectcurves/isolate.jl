@@ -4,10 +4,11 @@ function isolate(f; prec = 32, software="msolve")
     # Univariate isolation using usolve
     @assert is_univariate(f) "Not univariate polynomial"
 	if software == "usolve"
-		return usolve(f, precision = prec, uspath="src/usolve/usolve")
+		return getindex.(usolve(f, precision = prec, uspath="src/usolve/usolve"),2)
     else
         fvar = vars(f)[1]
-        return inter_solutions(Ideal(vcat([f], [ t for t in gens(parent(f)) if t!=fvar ])), precision=prec)
+        sols = inter_solutions(Ideal(vcat([f], [ t for t in gens(parent(f)) if t!=fvar ])), precision=prec)
+        return getindex.(sols, var_index(fvar))
     end
 end
 
