@@ -1,7 +1,10 @@
-println("\nLoading libraries and data..")
-using Nemo
+#println("\nLoading libraries and data..")
+#using Nemo
 #using Plots, Colors
 #pythonplot()
+
+export compute_graph
+
 include("tools.jl")
 include("subresultants.jl")
 include("isolate.jl")
@@ -11,6 +14,7 @@ include("plots.jl")
 
 function compute_graph(f; generic=false, precx = 100)
     R = parent(f)
+    x, y = gens(R)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
@@ -20,7 +24,7 @@ function compute_graph(f; generic=false, precx = 100)
 
     println("\nCompute parametrization of critical pts...")
     @time begin
-    sr = subresultants(f, derivative(f,y),2, list=true);
+    sr = subresultants(f, derivative(f,y), 2, list=true);
     # Take sqfree factors of the resultant
     sqr = collect(factor_squarefree(sr[1][1]))
     # Keep only deg>0 factors 
@@ -36,9 +40,6 @@ function compute_graph(f; generic=false, precx = 100)
     params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in group_sqr ];
     end
 
-    ###############
-    precx = 200;
-    ###############
     # TODO : check that no overlap between different isolations
     println("\nIsolating critical values at precision ", precx,"..")
     @time begin
@@ -50,7 +51,6 @@ function compute_graph(f; generic=false, precx = 100)
 
     println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
     @time begin
-    #RR(x) = Arb(x, prec=120)
     RR = ArbField(max(precx,150))
     Pcrit = [ [ [xc, evaluate_Arb(params[i][2], xc[1])/evaluate_Arb(params[i][3],xc[1])] for xc in xcrit[i]] for i in eachindex(xcrit) ]
     LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]

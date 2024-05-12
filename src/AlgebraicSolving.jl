@@ -18,4 +18,6 @@ include("siggb/siggb.jl")
 include("examples/katsura.jl")
 include("examples/cyclic.jl")
 
+include("connectcurves/connectcurves.jl")
+
 end # module AlgebraicSolving
