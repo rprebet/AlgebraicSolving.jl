@@ -1,5 +1,5 @@
 function in_inter(I, J)
-    return J[1] < I[1] && I[2] < J[2]
+    return J[1] <= I[1] && I[2] <= J[2]
 end
 
 function overlap_inter(I,J)
@@ -21,7 +21,7 @@ function intersect_box(f, B; prec=100)
                     push!(L[i][2], j)
                 elseif overlap_inter(l, B[1])
                     prec *= 2
-                    #println("Increase precision to ", prec)
+                    println("Increase precision to ", prec)
                     flag = true
                     break
                 end

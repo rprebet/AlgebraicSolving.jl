@@ -1,8 +1,12 @@
 ## TODO : deal with isolated vertices (not appearing in the edges)
 ############################
 
+function index_of(x, L)
+   return findfirst(t->t==x,L)
+end
+
 function connected_components(G)
-    # Group the vert and edges w.r.t the connected components they belong to
+    # Outputs subgraphs of the connected components
     ###########
     vert, edges = G
 
@@ -42,16 +46,15 @@ function connected_components(G)
         for node in component
             for neighbor in adj_list[node]
                 if neighbor > node && neighbor in component
-                    push!(grouped_edges[idx], (node, neighbor))
+                    push!(grouped_edges[idx], (index_of(node,component), index_of(neighbor,component)))
                 end
             end
         end
     end
 
-    grouped_vert = [ [ vert[cv] for cv in c ] for c in components ]
-    return grouped_vert, grouped_edges
+    return [ [[ vert[cv] for cv in components[i] ], grouped_edges[i]] for i in eachindex(components) ]
 end
 
 function number_connected_components(G)
-    return length(first(connected_components(G)))
+    return length(connected_components(G))
 end

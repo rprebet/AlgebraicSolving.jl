@@ -3,7 +3,7 @@
 #using Plots, Colors
 #pythonplot()
 
-export compute_graph, connected_components, number_connected_components
+export compute_graph, connected_components, number_connected_components, plot_graph, plot_graphs, plot_graph_comp
 
 include("tools.jl")
 include("subresultants.jl")
@@ -12,7 +12,11 @@ include("boxes.jl")
 include("graph.jl")
 include("plots.jl")
 
-function compute_graph(f; generic=false, precx = 100)
+function compute_graph(f; generic=false, precx = 100,v=0)
+    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    println("!! Careful: this is a WIP version !!")
+    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
     R = parent(f)
     x, y = gens(R)
     # Generic change of variables
@@ -21,6 +25,7 @@ function compute_graph(f; generic=false, precx = 100)
         changemat = map(QQ,rand(-500:500, 2, 2))
     end
     f = evaluate(f, collect(changemat*[x; y]));
+    
 
     println("\nCompute parametrization of critical pts...")
     @time begin
@@ -55,6 +60,11 @@ function compute_graph(f; generic=false, precx = 100)
     LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
     end
 
+    print("\nTest for identifying singular boxes");ts=time();
+    ########################################################
+    ### TODO ###############################################
+    ########################################################
+
     # Could be improved by handling nodes as extreme boxes:
     # when npcside = [2,2,0,0] just take nearest below and above
     # intersections b with the curves on the vertical sides
@@ -75,7 +85,6 @@ function compute_graph(f; generic=false, precx = 100)
                 pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
                 npcside = [length(n) for (I, n) in pcside]
                 if i == 1 && sum(npcside) > 2
-                    print((i,j)," ",npcside)
                     precxtmp *= 2
                     println("\nRefine extreme boxes along x-axis to precision ", precxtmp)
                     refine_xboxes(params[1][1], LBcrit[1], precxtmp)
@@ -249,8 +258,8 @@ function compute_graph(f; generic=false, precx = 100)
     #plot_graph_comp(Vert,CEdg)
     # Operate inverse change of variable if necessary
     if !(generic)
-        Vert = [ map(QQ,v) for v in Vert ]
+        Vert = [ changemat*v for v in Vert ]
     end
-    
+
     return Vert, Edg
 end

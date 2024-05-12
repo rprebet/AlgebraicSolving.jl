@@ -6,6 +6,9 @@ using LinearAlgebra
 using StaticArrays
 using LoopVectorization
 
+import Plots: plot, plot!, scatter!, gui, gr, pythonplot
+import Colors: distinguishable_colors
+
 import Random: MersenneTwister
 import Logging: ConsoleLogger, with_logger, Warn, Info
 import Printf: @sprintf
