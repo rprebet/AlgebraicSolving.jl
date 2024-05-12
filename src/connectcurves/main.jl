@@ -1,13 +1,14 @@
-println("Loading libraries and data..")
+println("\nLoading libraries and data..")
 using Pkg
 using Revise
 Pkg.activate("AlgebraicSolving.jl-main")
 using AlgebraicSolving
 using Nemo
-using Colors
-using PyPlot
+#using Plots, Colors
+#pythonplot()
 include("data.jl")
 include("src/usolve/usolve.jl")
+include("subresultants.jl")
 
 function order_permut2d(L)
     # Create a list of tuples with elements and their corresponding indices
@@ -49,22 +50,67 @@ function evaluate_Arb(f, x)
 	return evalpoly(RR(x), cf) 
 end
 
+function in_inter(I, J)
+    return J[1] < I[1] && I[2] < J[2]
+end
+
+function overlap_inter(I,J)
+    return max(I[1], J[1]) <= min(I[2], J[2])
+end
+
 # To try/do : isolate with usolve, call msolve with only one variable
-function intersect_box(f, B)
+function intersect_box(f, B; prec=100)
     L = Array{Any}(undef, 4)
     for i in 1:2
         # Lxi
         L[i] = Array{Any}(undef,2)
-        L[i][1] = isolate_eval(f, 2, B[2][i], prec=200)
-        L[i][2] = [ j for (j, l) in pairs(L[i][1]) if (l[1]> B[1][1] && l[2]<B[1][2]) ]
+        while true
+            flag = false
+            L[i][1] = isolate_eval(f, 2, B[2][i], prec=prec)
+            L[i][2] = []
+            for (j, l) in pairs(L[i][1])
+                if in_inter(l, B[1])
+                    push!(L[i][2], j)
+                elseif overlap_inter(l, B[1])
+                    prec *= 2
+                    #println("Increase precision to ", prec)
+                    flag = true
+                    break
+                end
+            end
+            flag || break
+        end
         # Lyi
         L[i+2] = Array{Any}(undef,2)
-        L[i+2][1] = isolate_eval(f, 1, B[1][i], prec=200)
-        L[i+2][2] =  [ j for (j, l) in pairs(L[i+2][1]) if (l[1]> B[2][1] && l[2]<B[2][2]) ]
+        while true
+            flag = false
+            L[i+2][1] = isolate_eval(f, 1, B[1][i], prec=prec)
+            L[i+2][2] = []
+            for (j, l) in pairs(L[i+2][1])
+                if in_inter(l, B[2])
+                    push!(L[i+2][2], j)
+                elseif overlap_inter(l, B[2])
+                    prec *= 2
+                    #println("Increase precision to ", prec)
+                    flag = true
+                    break
+                end
+            end
+            flag || break
+        end
     end
     return L
 end
 
+function refine_xboxes(f, LB, prec)
+    # Implementation of refine_xboxes function goes here
+    xnew = isolate(f, prec=prec)[2]
+    for i in eachindex(LB)
+		  LB[i] = [ xnew[i], LB[i][2] ]
+    end
+end
+
+## Plot functions
 function plot_graph(V, E)
     println("Plotting the graph")
     plot(legend=false)
@@ -91,6 +137,7 @@ function plot_graph_comp(V, CE)
     plot!()
 end
 
+## Graph functions
 function connected_components_bis(edges)
     adj_list = Dict{Int, Vector{Int}}()
     visited = Set{Int}()
@@ -130,60 +177,80 @@ function connected_components_bis(edges)
     return components
 end
 
-println("Isolating critical values..")
-xcrit = [ isolate(first(p), prec=150) for p in params ]
+# Generic change of variables
+changemat = [1 0; 0 1]
+#changemat = rand(-100:100, 2, 2)
+invchangemat = inv(changemat)
+f = evaluate(f, collect(changemat*[x; y]));
+
+println("\nCompute parametrization of critical pts...")
+@time begin
+sr = subresultants(f, derivative(f,y),2, list=true);
+# Take the deg>0 sqfree factors of the resultant and order by multiplicity
+# TODO : group by multiplicity
+sqr = collect(factor_squarefree(sr[1][1]))
+# Construct the parametrization of the critical points
+params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in sqr ];
+end
+
+###############
+precx = 150;
+###############
+println("\nIsolating critical values at precision ", precx,"..")
+@time begin
+xcrit = [ isolate(first(p), prec=precx) for p in params ]
 xcrit_usolve = getindex.(xcrit, 1)
 xcrit = getindex.(xcrit, 2)
-xcritorder, xcritpermut = order_permut2d(xcrit);
+_, xcritpermut = order_permut2d(xcrit);
+end
 
-println("Computing isolating critical boxes using Arb..")
+println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
+@time begin
 #RR(x) = Arb(x, prec=120)
-RR = ArbField(150)
+RR = ArbField(max(precx,150))
 Pcrit = [ [ [xc, evaluate_Arb(params[i][2], xc[1])/evaluate_Arb(params[i][3],xc[1])] for xc in xcrit[i]] for i in eachindex(xcrit) ]
-LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ];
-Pcrit = [ [ [ rat_to_Arb(pc[1]), pc[2] ]  for pc in pcrit] for pcrit in Pcrit ];
+LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
+end
 
 # Could be improved by handling nodes as extreme boxes:
-# when npcside = [2,2,0,0] just take nearest elow and above
+# when npcside = [2,2,0,0] just take nearest below and above
 # intersections b with the curves on the vertical sides
 # and change into npcside = [0,0,2,2]
-println("\nCompute intersections with critical boxes")
-ts = time()
-LPCside = Array{Any}(undef,2)
-ndig = maximum([Int(floor(log10(length(LBcrit[i])))) for i in 1:2])
-Ltm = []
-i = 1
-while i <= length(LBcrit)
-    global i
+## TODO : Refine only the intervals that need to be refined
+println("\nCompute intersections with critical boxes..")
+@time begin
+LPCside = Array{Any}(undef,length(LBcrit))
+ndig = maximum([Int(floor(log10(length(LB)))) for LB in LBcrit])
+for i in eachindex(LBcrit)
     ndigi = Int(floor(log10(length(LBcrit[i]))))
     LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
-    for j in eachindex(LBcrit[i])
-        print("mult=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
-        tm = time()
-        pcside = intersect_box(f, LBcrit[i][j])
-        npcside = [length(n) for (I, n) in pcside]
-        if i == 1 && sum(npcside) > 2
-            @assert false "\nRefine extreme boxes along x-axis"
-            #refine_xboxes(QQ["x"](params[1][1]), LBcrit[1])
-            #i = 0
-            #j = 1
-            #break
-        elseif i > 1 && sum(npcside[1:2]) != 0
-            println(npcside)
-            @assert false "\nRefine singular boxes along x-axis"
-            #refine_xboxes(QQ["x"](params[2][1]), LBcrit[2])
-            #i -= 1
-            #break
+    precxtmp = precx 
+    while true
+        flag = false
+        for j in eachindex(LBcrit[i])
+            print("mult=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
+            pcside = intersect_box(f, LBcrit[i][j], prec=precx)
+            npcside = [length(n) for (I, n) in pcside]
+            if i == 1 && sum(npcside) > 2
+                precxtmp *= 2
+                println("\nRefine extreme boxes along x-axis to precision ", precxtmp)
+                refine_xboxes(params[1][1], LBcrit[1], precxtmp)
+                flag = true
+                break
+            elseif i > 1 && sum(npcside[1:2]) != 0
+                precxtmp *= 2
+                println("\nRefine singular boxes along x-axis to precision ", precxtmp)
+                refine_xboxes(params[2][1], LBcrit[2], precxtmp)
+                flag = true
+                break
+            end
+            LPCside[i][j] = pcside
         end
-        LPCside[i][j] = pcside
-        push!(Ltm, time() - tm)
+        flag || break
     end
-    i += 1
     println("")
 end
 LnPCside = [ [[length(indI) for (L, indI) in PB] for PB in lpcside] for lpcside in LPCside ] 
-println("Average time for one point: $(sum(Ltm)/length(Ltm))s")
-println("Elapsed time to compute critical boxes: $(time()-ts)s")
 
 # Update extreme boxes
 for j in eachindex(LBcrit[1])
@@ -222,8 +289,10 @@ for j in eachindex(LBcrit[1])
         end
     end
 end
+end
 
-print("Graph computation")
+#print("\nGraph computation :")
+#@time begin
 # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
 # And even remove this fiber for the graph
 Vert = []
@@ -337,10 +406,14 @@ for ind in 1:length(xcritpermut)
         ite += 1
     end
 end
+#end
 
-EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
-plot_graph(Vert, EdgPlot)
+#EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
+#plot_graph(Vert, EdgPlot)
+#gui()
 
 CEdg = connected_components_bis(Edg);
 
-plot_graph_comp(Vert,CEdg)
+println("\n## The curve has ", length(CEdg), " connected components ##")
+
+#plot_graph_comp(Vert,CEdg)
