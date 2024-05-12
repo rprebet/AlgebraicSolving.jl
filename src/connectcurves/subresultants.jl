@@ -15,8 +15,8 @@ function add_ind(L,i,x)
 end
 
 function parray_asvar(LP, idx)
-    # takes a sparse representation of a poly P  
-    # and outputs a sparse rpz of P seen as a univariate poly in the i-th variable
+    # takes the above representation of a poly P  
+    # and outputs a representation of P seen as a univariate poly in the i-th variable
     deg = sort(LP[2], by= x->x[idx])[end][idx]
     NLP = [ [[],[]] for _ in 1:deg+1 ]
     for i in eachindex(LP[2])
@@ -66,7 +66,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
                     c = x
                     n = n - a
                     while a > 1
-                        a ÷= 2
+                        a /= 2
                         c = c^2 / y
                         if n >= a
                             c = c * x / y
