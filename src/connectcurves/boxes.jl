@@ -51,9 +51,15 @@ function intersect_box(f, B; prec=100)
 end
 
 function refine_xboxes(f, LB, prec)
-    # Implementation of refine_xboxes function goes here
+    # Refine LB along first axis, being roots of f
     xnew = isolate(f, prec=prec)
     for i in eachindex(LB)
 		  LB[i] = [ xnew[i], LB[i][2] ]
     end
+end
+
+function refine_ith_xboxes(f, LB, i, prec)
+    # Refine only LB[i] along first axis, being i-th root of f
+    xnew = isolate(f, prec=prec)
+	LB[i] = [ xnew[i], LB[i][2] ]
 end
