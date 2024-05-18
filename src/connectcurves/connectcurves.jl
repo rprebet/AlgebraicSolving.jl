@@ -11,6 +11,7 @@ include("isolate.jl")
 include("boxes.jl")
 include("graph.jl")
 include("plots.jl")
+include("arbtools.jl")
 
 function compute_graph(f; generic=false, precx = 150,v=0, arb=false)
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")

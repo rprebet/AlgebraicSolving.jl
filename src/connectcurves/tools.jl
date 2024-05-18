@@ -10,18 +10,18 @@ function order_permut2d(L)
     return sorted_ind
 end
 
-function Arb_to_rat(x)
-	r = radius(x)
-	return map(simplest_rational_inside, [x-2*r, x+2*r])
+function diff(p, v, n)
+    dp = p
+    for j in 1:n
+        dp = derivative(dp, v)
+    end
+    return dp
 end
 
-function rat_to_Arb(x, prec)
-    x1,x2 = x
-    xm, xd = ArbField(prec)((x1+x2)/2), ArbField(prec)(x2-x1)
-    return ball(xm,xd)
-end
-
-function evaluate_Arb(f, x, prec)
-	cf = coefficients_of_univariate(f)
-	return evalpoly(ArbField(prec)(x), cf) 
+function diff_list(p, v, n)
+    Ldp = [p]
+    for j in 1:n
+        push!(Ldb,derivative(Ldp[end], v))
+    end
+    return Ldp
 end
