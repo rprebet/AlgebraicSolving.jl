@@ -15,8 +15,20 @@ include("plots.jl")
 include("arbtools.jl")
 include("param-curve.jl")
 
-function compute_graph(f; generic=false, precx = 150,v=0, arb=false)
-    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+function compute_graph(F; param=false, generic=false, precx=150, v=0, arb=false)
+
+    if !(param)
+        println("Compute rational parametrization...")
+        @time begin
+            Fparam = compute_param(F)
+        end
+    end
+
+    return compute_graph_param(Fparam[1], generic=generic, precx=precx, v=v, arb=arb)
+end
+
+function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
+    println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     println("!! Careful: this is a WIP version !!")
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
