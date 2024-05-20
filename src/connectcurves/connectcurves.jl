@@ -3,7 +3,8 @@
 #using Plots, Colors
 #pythonplot()
 
-export compute_graph, connected_components, number_connected_components, plot_graph, plot_graphs, plot_graph_comp
+export compute_graph, connected_components, number_connected_components,
+ plot_graph, plot_graphs, plot_graph_comp, compute_param
 
 include("tools.jl")
 include("subresultants.jl")
@@ -12,6 +13,7 @@ include("boxes.jl")
 include("graph.jl")
 include("plots.jl")
 include("arbtools.jl")
+include("param-curve.jl")
 
 function compute_graph(f; generic=false, precx = 150,v=0, arb=false)
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
