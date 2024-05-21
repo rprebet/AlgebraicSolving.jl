@@ -20,7 +20,7 @@ function compute_graph(F; param=false, generic=false, precx=150, v=0, arb=false)
     if !(param)
         println("Compute rational parametrization...")
         @time begin
-            Fparam = compute_param(F)
+            Fparam = compute_param(F, generic=generic)
         end
     end
 
@@ -38,7 +38,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
-        changemat = map(QQ,rand(-500:500, 2, 2))
+        changemat = trimat_rand(QQ, 2, range=-500:500)
     end
     f = evaluate(f, collect(changemat*[x; y]));
     

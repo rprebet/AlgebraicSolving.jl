@@ -24,7 +24,7 @@ function deg_Alg(F, dim)
 end
 
 
-function compute_param(F)
+function compute_param(F; generic=false)
     varias = gens(parent(first(F)))
     N = length(varias)
 

@@ -25,3 +25,11 @@ function diff_list(p, v, n)
     end
     return Ldp
 end
+
+function trimat_rand(A, n; up=true, range=-100:100)
+    if up
+        return [ i==j ? one(A) : (i<j ? A(rand(range)) : zero(A)) for i in 1:n, j in 1:n ]
+    else
+        return [ i==j ? one(A) : (i>j ? A(rand(range)) : zero(A)) for i in 1:3, j in 1:3 ]
+    end
+end
