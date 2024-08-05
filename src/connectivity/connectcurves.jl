@@ -13,18 +13,18 @@ include("boxes.jl")
 include("graph.jl")
 include("plots.jl")
 include("arbtools.jl")
-include("param-curve.jl")
 
 function compute_graph(F; param=false, generic=false, precx=150, v=0, arb=false)
-
     if !(param)
         println("Compute rational parametrization...")
         @time begin
-            Fparam = compute_param(F, generic=generic)
+            Fparam = compute_param(F)[3]
         end
+    else
+        Fparam = F[1]
     end
 
-    return compute_graph_param(Fparam[1], generic=generic, precx=precx, v=v, arb=arb)
+    return compute_graph_param(Fparam, generic=generic, precx=precx, v=v, arb=arb)
 end
 
 function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
@@ -32,7 +32,6 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     println("!! Careful: this is a WIP version !!")
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-@time begin
     R = parent(f)
     x, y = gens(R)
     # Generic change of variables
@@ -79,7 +78,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     else
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
         @time begin
-        LBcrit = [ sort(inter_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx),by=t->t[1]) for p in params ]
+        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx, interval=true),by=t->t[1]) for p in params ]
         xcrit = [ [ B[1] for B in lbcrit ] for lbcrit in LBcrit ]
         xcritpermut = order_permut2d(xcrit);
         end
@@ -96,7 +95,6 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     # and change into npcside = [0,0,2,2]
     ## TODO : Refine only the intervals that need to be refined
     println("\nCompute intersections with critical boxes..")
-    @time begin
     LPCside = Array{Any}(undef,length(LBcrit))
     ndig = maximum([Int(floor(log10(length(LB)))) for LB in LBcrit])
     for i in eachindex(LBcrit)
@@ -167,7 +165,6 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             end
         end
     end
-    end
 
     println("Graph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
@@ -236,23 +233,25 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
         ###########################
         # The critical point
         ##########################
-        # if it is an isolated point
-        if isempty(nI[1]) && isempty(nI[2])
-            #pass
-            # We can add the isolated  vertex
-            # push!(Vert, Pcrit[i][j])
-            # push!(Corr[i][j][2][1], length(Vert))
-            # We will subsequently add the vertex in the graph
-            # push!(Viso, length(Vert))
-        ############################################
-        ## TO BE REPLACED BY APPSING IDENTIFICATOR ##
-        ## works for space curves without nodes   ##
-        ############################################
         # If we are dealing with a node
-        elseif i == 2
-            # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
-            push!(Edg, [Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]])
-            push!(Edg, [Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]])
+        if i == 2
+            # if it is an isolated point
+            if isempty(nI[1]) && isempty(nI[2])
+                #pass
+                # We can add the isolated  vertex
+                # push!(Vert, [xcmid, ycmid])
+                # push!(Corr[i][j][2][1], length(Vert))
+                # We will subsequently add the vertex in the graph
+                # push!(Viso, length(Vert))
+            ############################################
+            ## TO BE REPLACED BY APPSING IDENTIFICATOR ##
+            ## works for space curves without nodes   ##
+            ############################################
+            else
+                # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
+                push!(Edg, [Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]])
+                push!(Edg, [Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]])
+            end
         else
             # We can add the vertex
             push!(Vert, [xcmid, ycmid])
@@ -274,7 +273,6 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             push!(Edg, [Corr[i][j][1][end - k + 1], length(Vert)])  # left
             push!(Edg, [length(Vert), Corr[i][j][3][end - k + 1]])  # right
         end
-    end
 
     #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
     #plot_graph(Vert, EdgPlot)
@@ -285,7 +283,6 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     if !(generic)
         Vert = [ changemat*v for v in Vert ]
     end
-println("Total time:")
 end
     return Vert, Edg
 end

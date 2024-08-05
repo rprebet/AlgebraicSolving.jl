@@ -14,9 +14,12 @@ include("algorithms/normal-forms.jl")
 include("algorithms/solvers.jl")
 #= siggb =#
 include("siggb/siggb.jl")
-#= Connectivity on alg. curves=#
-include("connectcurves/connectcurves.jl")
+#= connectivity =#
+include("connectivity/computeRM.jl")
+include("connectivity/paramcurve.jl")
+include("connectivity/connectcurves.jl")
 #= examples =#
 include("examples/katsura.jl")
 include("examples/cyclic.jl")
+
 end # module AlgebraicSolving

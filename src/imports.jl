@@ -4,10 +4,11 @@ using msolve_jll
 using Nemo
 using LinearAlgebra
 using StaticArrays
-using LoopVectorization
 
-import Plots: plot, plot!, scatter!, gui, gr, pythonplot
-import Colors: distinguishable_colors
+using Plots, Colors
+pythonplot()
+
+import Plots: plot
 
 import Random: MersenneTwister
 import Logging: ConsoleLogger, with_logger, Warn, Info
@@ -35,6 +36,7 @@ import Nemo:
     is_probable_prime,
     is_square,
     is_unit,
+    is_zero,
     isqrtrem,
     jacobi_symbol,
     leading_coefficient,
