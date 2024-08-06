@@ -21,6 +21,8 @@ function _convert_to_msolve(
     if field_char > 2^31 || degree(base_ring(R)) != 1
         error("At the moment we only support prime fields up to prime characteristic < 2^31.")
     end
+
+    lens = Int32[]
     # get coefficients
     if field_char == 0
         cfs = BigInt[]
@@ -29,15 +31,21 @@ function _convert_to_msolve(
     end
     if field_char == 0
         for i in 1:nr_gens
-            for cf in coefficients(F[i])
-                push!(cfs, BigInt(numerator(cf)))
-                push!(cfs, BigInt(denominator(cf)))
+            if F[i] != R(0)
+                for cf in coefficients(F[i])
+                    push!(cfs, BigInt(numerator(cf)))
+                    push!(cfs, BigInt(denominator(cf)))
+                end
+                push!(lens, length(F[i]))
             end
         end
     else
         for i in 1:nr_gens
-            for cf in coefficients(F[i])
-                push!(cfs, Int32(lift(Nemo.ZZ, cf)))
+            if F[i] != R(0)
+                for cf in coefficients(F[i])
+                    push!(cfs, Int32(lift(Nemo.ZZ, cf)))
+                end
+                push!(lens, length(F[i]))
             end
         end
     end
@@ -50,7 +58,7 @@ function _convert_to_msolve(
         end
     end
 
-    return lens, cfs, exps
+    return lens, cfs, exps, length(lens)
 end
 
 @doc Markdown.doc"""
@@ -108,6 +116,57 @@ function _convert_finite_field_array_to_abstract_algebra(
             for j in 1:blen[i]
                 push_term!(g, CR(bcf[len+j]),
                            convert(Vector{Int}, bexp[(len+j-1)*nr_vars+1:(len+j)*nr_vars]))
+            end
+            push!(basis, finish(g))
+        end
+        len +=  blen[i]
+    end
+
+    return basis
+end
+
+function _convert_rational_array_to_abstract_algebra(
+        bld::Int32,
+        blen::Vector{Int32},
+        bcf::Vector{QQFieldElem},
+        bexp::Vector{Int32},
+        R::MPolyRing,
+        normalize::Bool=false,
+        eliminate::Int=0
+        )
+
+    #  Note: Over QQ msolve already returns the eliminated basis
+    #  only in order to save memory due to possible huge
+    #  coefficient sizes.
+    if characteristic(R) != 0
+        error("We assume QQ as base field here.")
+    end
+
+    nr_gens = bld
+    nr_vars = nvars(R)
+    CR      = coefficient_ring(R)
+
+    basis = (typeof(R(0)))[]
+
+    len   = 0
+
+    for i in 1:nr_gens
+        if bcf[len+1] == 0
+            push!(basis, R(0))
+        else
+            g  = MPolyBuildCtx(R)
+            lc = bcf[len+1]
+
+            if normalize && lc != 1
+                for j in 1:blen[i]
+                    push_term!(g, bcf[len+j]/lc,
+                               convert(Vector{Int}, bexp[(len+j-1)*nr_vars+1:(len+j)*nr_vars]))
+                end
+            else
+                for j in 1:blen[i]
+                    push_term!(g, bcf[len+j],
+                               convert(Vector{Int}, bexp[(len+j-1)*nr_vars+1:(len+j)*nr_vars]))
+                end
             end
             push!(basis, finish(g))
         end

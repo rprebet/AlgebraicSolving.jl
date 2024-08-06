@@ -20,10 +20,10 @@
         [[402853591//2147483648, 805707183//4294967296], [336526807//4294967296, 42065851//536870912], [316086875//4294967296, 79021719//1073741824], [177189787222909921100715117200104483589869//696898287454081973172991196020261297061888, 354379574445819842201430234400208967179739//1393796574908163946345982392040522594123776]],
         [[1431655765//4294967296, 715827883//2147483648], [-1//4294967296, 1//4294967296], [-1//4294967296, 1//4294967296], [7259357160980020553885324958544388511061//21778071482940061661655974875633165533184, 3629678580490010276942662479272194255531//10889035741470030830827987437816582766592]]
                                             ]
-    rat_sols = Vector{QQFieldElem}[[49, 0, 0, 0], [49//3, 0, 0, 1//3]]
+    rat_sols = Vector{QQFieldElem}[[1, 0, 0, 0], [1//3, 0, 0, 1//3]]
 
     @test sols == real_solutions(I)
-    @test inter_sols == inter_solutions(I)
+    @test inter_sols == real_solutions(I, interval=true)
     @test rat_sols == rational_solutions(I)
     @test I.real_sols == real_solutions(I)
 
@@ -33,9 +33,9 @@
     p1    = -3872448*x^7 + 2607552*x^6 - 408528*x^5 - 63088*x^4 + 20224*x^3 - 540*x^2 - 172*x + 7
     p2    = -303264*x^7 + 314928*x^6 - 113544*x^5 + 9840*x^4 + 3000*x^3 - 564*x^2 + 12*x
     p3    = -699840*x^7 + 449712*x^6 - 74808*x^5 - 1956*x^4 + 1308*x^3 - 174*x^2 + 18*x
-    p1   *= -7
-    p2   *= -7
-    p3   *= -7
+    p1   *= -1//7
+    p2   *= -1//7
+    p3   *= -1//7
 
     param = rational_parametrization(I)
 
@@ -54,16 +54,21 @@
 
     I = Ideal([x1^2-x2, x1*x3-x4, x2*x4-12, x4^3-x3^2])
     real_solutions(I)
-    inter_solutions(I)
     @test I.rat_param.vars == Symbol[]
 
     I = Ideal([x1^2-x2, x1*x3, x2-12])
 	@test_throws ErrorException real_solutions(I)
-    @test_throws ErrorException inter_solutions(I)
+    @test_throws ErrorException real_solutions(I, interval=true)
 	@test_throws ErrorException rational_solutions(I)
 
-    # check variable permutation
     R, (x, y) = polynomial_ring(QQ,["x","y"])
+    # issue 54
+    I = Ideal([R(0)])
+	@test_throws ErrorException real_solutions(I)
+    I = Ideal([x-1,y+2,R(0)])
+    @test sort(real_solutions(I)) == sort(Vector{QQFieldElem}[[1, -2]])
+
+    # check variable permutation
     I = Ideal([x^2-1, y])
     sols = Vector{QQFieldElem}[
         [-1, 0],
