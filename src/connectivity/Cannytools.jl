@@ -1,35 +1,58 @@
-
-function remfirstvars(F::Vector{P}, irem) where {P <: MPolyRingElem}
+# Return the polynomials in F, but injected in the polynomial ring with newvarias_S as new variables
+function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: MPolyRingElem}
     R = parent(first(F))
-    istart = irem+1
-    S, vars = polynomial_ring(base_ring(R), ["x$i" for i in istart:nvars(R)])
+    # Locate variables of R in newvarias
+    to_varias = Vector{Int}(undef,0)
+    for v in newvarias_S
+        ind = findfirst(x->x==v, R.S)
+        push!(to_varias, typeof(ind)==Nothing ? length(R.S)+1 : ind) 
+    end
+
+    ind_novarias = setdiff(eachindex(R.S), to_varias)
+    newR, newvarias = polynomial_ring(base_ring(R), newvarias_S)
+
     res = typeof(first(F))[]
+    ctx = MPolyBuildCtx(newR)
+
     for f in F
-        ctx = MPolyBuildCtx(S)
         for (e, c) in zip(exponent_vectors(f), coefficients(f))
-            @assert(all([ e[i]==0 for i in 1:irem ]), "Occurence of first variable.s found!")
-            push_term!(ctx, c, e[istart:end])
+            @assert(all([ e[i]==0 for i in ind_novarias ]), "Occurence of old variable.s found!")
+            push!(e, 0)
+            push_term!(ctx, c, [e[i] for i in to_varias ])
         end
         push!(res, finish(ctx))
     end
-    return res
+    
+    return res 
 end
 
-function remvars(F::Vector{P}; irem::Vector{Int64}) where {P <: MPolyRingElem}
-    R = parent(first(F))
-    ikeep = [ i for i in 1:nvars(R) if !(i in irem) ]
-    S, vars = polynomial_ring(base_ring(R), ["x$i" for i in ikeep])
-    res = typeof(first(F))[]
-    for f in F
-        ctx = MPolyBuildCtx(S)
-        for (e, c) in zip(exponent_vectors(f), coefficients(f))
-            @assert(all([ e[i]==0 for i in irem ]), "Occurence of removed variable.s found!")
-            push_term!(ctx, c, [ e[i] for i in ikeep ])
-        end
-        push!(res, finish(ctx))
-    end
-    return res
+function change_ringvar(f::MPolyRingElem, newvarias_S::Vector{Symbol})
+    return change_ringvar([f], newvarias_S)
 end
+
+function change_ringvar(F::Vector{P}, ind_newvarias::Vector{Int64}) where {P <: MPolyRingElem}
+    R = parent(first(F))
+    return change_ringvar(F, [R.S[i] for i in ind_newvarias])
+end
+
+function change_ringvar(f::MPolyRingElem, ind_newvarias::Union{Vector{I}, UnitRange{I}}) where {I <: Int64}
+    R = parent(f)
+    return change_ringvar([f], [R.S[i] for i in ind_newvarias])
+end
+
+# Return the polynomials in F, but injected in the polynomial ring with the variables occuring in F 
+function change_ringvar(F::Vector{P}) where {P <: MPolyRingElem}
+    union_varias = Set{Symbol}()
+    for f in F
+        union!(union_varias, map(Symbol, vars(f)) )
+    end
+    return change_ringvar(F, collect(union_varias)) 
+end
+
+function change_ringvar(f::MPolyRingElem)
+    change_ringvar([f])
+end
+
 
 function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0)
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
