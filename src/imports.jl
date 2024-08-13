@@ -5,7 +5,7 @@ using Nemo
 using LinearAlgebra
 using StaticArrays
 using Plots, Colors
-pythonplot()
+#pythonplot()
 
 import Plots: plot
 import Random: MersenneTwister
