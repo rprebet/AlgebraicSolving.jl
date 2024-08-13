@@ -40,50 +40,63 @@ function deg_Alg(F, dim)
 end
 
 
-function compute_param(F)
+function compute_param(F; lfs = false)
     R = parent(first(F))
     varias, N = gens(R), nvars(R)
-
-    # Identification of two generic variables for the parametrization")
-    ivarias_gen = Vector{Int}(undef,0)
     DEG = deg_Alg(F,1)
-    ind = N
-    while true
-        NEW_DEG = deg_Alg(vcat(F, varias[ind]-rand(-100:100)), 0)
-        if NEW_DEG == DEG
-            push!(ivarias_gen, ind)
-        end
-        (length(ivarias_gen) < 2 && ind > 0) || break
-        ind -= 1
-    end
-    reverse!(ivarias_gen)
-    nb_lf = 2-length(ivarias_gen)
 
-    if ivarias_gen != [N-1,N]
+    if !lfs
+        # Identification of two generic variables for the parametrization")
+        ivarias_gen = Vector{Int}(undef,0)
+        ind = N
+        while true
+            NEW_DEG = deg_Alg(vcat(F, varias[ind]-rand(-100:100)), 0)
+            if NEW_DEG == DEG
+                push!(ivarias_gen, ind)
+            end
+            (length(ivarias_gen) < 2 && ind > 0) || break
+            ind -= 1
+        end
+        reverse!(ivarias_gen)
+        nb_lf = 2-length(ivarias_gen)
+
+        if ivarias_gen != [N-1,N]
+            # Add new generic variables at the end if necessary
+            newvarias_S = [R.S[i] for i in vcat(setdiff(1:N, ivarias_gen), ivarias_gen)]
+            append!(newvarias_S, [:A,:B][nb_lf:-1:1] )
+
+            # We change the polynomial ring and add linear form(s) if necessary
+            Rold, Nold = R, N
+            R, varias = polynomial_ring(base_ring(Rold), newvarias_S)
+            N = length(varias)
+
+            index_permut = Dict((v, i) for (i, v) in enumerate(newvarias_S))
+            permut_varias = [ index_permut[v] for v in Rold.S ]
+            # TODO: permut exponents and use polynomial constructor 
+            F = [ evaluate(f, [ varias[permut_varias[i]] for i in 1:Nold ]) for f in F ] 
+
+            if nb_lf > 0
+                lf_cfs = [ rand(ZZ(-100):ZZ(100), N) for _ in 1:nb_lf]
+                append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
+            else
+                lf_cfs = Vector{Vector{ZZRingElem}}(undef,0)
+            end
+        else
+            lf_cfs = Vector{Vector{ZZRingElem}}(undef,0)
+        end
+    else
         # Add new generic variables at the end if necessary
-        newvarias_S = [R.S[i] for i in vcat(setdiff(1:N, ivarias_gen), ivarias_gen)]
-        append!(newvarias_S, [:A,:B][nb_lf:-1:1] )
+        newvarias_S = vcat(R.S, [:B,:A])
 
         # We change the polynomial ring and add linear form(s) if necessary
         Rold, Nold = R, N
         R, varias = polynomial_ring(base_ring(Rold), newvarias_S)
         N = length(varias)
 
-        index_permut = Dict((v, i) for (i, v) in enumerate(newvarias_S))
-        permut_varias = [ index_permut[v] for v in Rold.S ]
-        # TODO: permut exponents and use polynomial constructor 
-        F = [ evaluate(f, [ varias[permut_varias[i]] for i in 1:Nold ]) for f in F ] 
-
-        if nb_lf > 0
-            lf_cfs = [ rand(ZZ(-100):ZZ(100), N) for _ in 1:nb_lf]
-            append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
-        else
-            lf_cfs = Vector{Vector{ZZRingElem}}(undef,0)
-        end
-    else
-        lf_cfs = Vector{Vector{ZZRingElem}}(undef,0)
+        F = [ evaluate(f, [ varias[i] for i in 1:Nold ]) for f in F ] 
+        lf_cfs = [ rand(ZZ(-100):ZZ(100), N) for _ in 1:2]
+        append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
     end
-
     # Compute DEG+1 evaluations of the param (whose deg is bounded by DEG)
     PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,0)
     _values = Vector{QQFieldElem}(undef,0)
@@ -122,7 +135,7 @@ function compute_param(F)
             _evals = [ coeff(PARAM[i][count], deg) for i in 1:length(PARAM)]
             push!(COEFFS, interpolate(polynomial_ring(QQ,"u")[1], _values, _evals))
         end
-        
+
         C = [ collect(coefficients(c)) for c in COEFFS ]
         POL_term = [C[i][j]*x^(j-1)*y^(i-1) for i in 1:length(C) for j in 1:length(C[i])]
         POL = length(POL_term) > 0 ? sum(POL_term) : T(0) 
