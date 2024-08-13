@@ -4,7 +4,7 @@
 #using AlgebraicSolving
 #using Nemo
 
-export computeRM
+export computeRM, computepolarproj
 
 include("Cannytools.jl")
 
@@ -25,7 +25,7 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
   for q in Q
       ## Fq ##
       if e > 0
-        hFq = remfirstvars([evaluate(h, fixvarias, q) for h in V.gens], e)
+        hFq = change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], collect(1:e))
         Fq = AlgebraicSolving.Ideal(hFq)
       else
         Fq = V
