@@ -86,8 +86,28 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
 
     print("\nTest for identifying singular boxes");ts=time();
     ########################################################
-    ### TODO ###############################################
-    ########################################################
+    # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
+    ### DEBUG: for now, only nodes for singular points, hardcode below ###
+    mult_to_factor = Dict(2=>[2])
+    #########################################################
+    Lfyk = diff_list(f, 2, multmax)
+    for mult in keys(mult_to_factor)
+        for k in mult_to_factor[mult]
+            while true
+                flag = false
+                for j in eachindex(LBcrit[k])
+                    pcrit = arb ? Pcrit[k][j] : [ rat_to_Arb(c, prec) for c in LBcrit[k][j] ]
+                    if contains_zero(evaluate(Lfyk[mult], pcrit))
+                        println("Refine singular boxes of multiplicity ", k)
+                        refine_boxes(params[k], LBcrit[k])
+                        flag = true
+                        break
+                    end
+                end
+                flag || break
+            end
+        end
+    end
 
     # Could be improved by handling nodes as extreme boxes:
     # when npcside = [2,2,0,0] just take nearest below and above
@@ -174,6 +194,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
     Viso = []
 
+    println(LBcrit[2][1])
     for ind in 1:length(xcritpermut)
         i, j = xcritpermut[ind]
 
@@ -237,6 +258,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
         if i == 2
             # if it is an isolated point
             if isempty(nI[1]) && isempty(nI[2])
+                println("Remove appsing ($i,$j) (isolated)")
                 #pass
                 # We can add the isolated  vertex
                 # push!(Vert, [xcmid, ycmid])
@@ -248,6 +270,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             ## works for space curves without nodes   ##
             ############################################
             else
+                println("Remove appsing ($i,$j) (node)")
                 # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
                 push!(Edg, [Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]])
                 push!(Edg, [Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]])
