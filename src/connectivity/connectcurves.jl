@@ -14,7 +14,7 @@ include("graph.jl")
 include("plots.jl")
 include("arbtools.jl")
 
-function compute_graph(F; param=false, generic=false, precx=150, v=0, arb=false)
+function compute_graph(F, C=[]; param=true, generic=true, precx=150, v=0, arb=true, int_coeff=false)
     if !(param)
         println("Compute rational parametrization...")
         @time begin
@@ -24,33 +24,38 @@ function compute_graph(F; param=false, generic=false, precx=150, v=0, arb=false)
         Fparam = F[1]
     end
 
-    return compute_graph_param(Fparam, generic=generic, precx=precx, v=v, arb=arb)
+    return compute_graph_param(Fparam, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff)
 end
 
-function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
+function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, int_coeff=false)
     println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     println("!! Careful: this is a WIP version !!")
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     R = parent(f)
     x, y = gens(R)
+
+    if int_coeff
+        CD = lcm(map(denominator, collect(coefficients(f))))
+        f *= CD
+    end
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
-        changemat = trimat_rand(QQ, 2, range=-500:500)
+        changemat = trimat_rand(QQ, 2, range=-100:100)
     end
     f = evaluate(f, collect(changemat*[x; y]));
     
 
     println("\nCompute parametrization of critical pts...")
     @time begin
-    sr = subresultants(f, derivative(f,y), 2, list=true);
+    sr = subresultants(f, derivative(f,y), 2, list=true)
     # Take sqfree factors of the resultant
     sqr = collect(factor_squarefree(sr[1][1]))
     # Keep only deg>0 factors 
-    filter(t->t[2]>0, sqr)
+    filter!(t->t[2]>0, sqr)
     # Order by multiplicity
-    sqr = sort(sqr, by=t->t[2])
+    sort!(sqr, by=t->t[2])
     # Group by multiplicity
     group_sqr = [ [R(1),i] for i in 1:sqr[end][2] ]
     for r in sqr
@@ -58,6 +63,10 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     end
     # Construct the parametrization of the critical points
     params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in group_sqr ];
+
+    if length(C)>0
+        push!(params, C)
+    end
     end
 
     if arb
@@ -84,23 +93,25 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
         end
     end
 
-    print("\nTest for identifying singular boxes");ts=time();
+    @time begin
+    println("\nTest for identifying singular boxes");ts=time();
     ########################################################
     # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
     ### DEBUG: for now, only nodes for singular points, hardcode below ###
     mult_to_factor = Dict(2=>[2])
     #########################################################
-    Lfyk = diff_list(f, 2, multmax)
-    for mult in keys(mult_to_factor)
-        for k in mult_to_factor[mult]
+    mults = keys(mult_to_factor)
+    Lfyk = diff_list(f, 2, maximum(mults))
+    for m in mults
+        for k in mult_to_factor[m]
             while true
                 flag = false
                 for j in eachindex(LBcrit[k])
-                    pcrit = arb ? Pcrit[k][j] : [ rat_to_Arb(c, prec) for c in LBcrit[k][j] ]
-                    if contains_zero(evaluate(Lfyk[mult], pcrit))
+                    pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[k][j] ]
+                    if contains_zero(evaluate(Lfyk[m+1], pcrit))
                         println("Refine singular boxes of multiplicity ", k)
-                        refine_boxes(params[k], LBcrit[k])
-                        flag = true
+                        # TODO refine_boxes(params[k], LBcrit[k])
+                        #flag = true
                         break
                     end
                 end
@@ -108,7 +119,9 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             end
         end
     end
+    end
 
+    @time begin
     # Could be improved by handling nodes as extreme boxes:
     # when npcside = [2,2,0,0] just take nearest below and above
     # intersections b with the curves on the vertical sides
@@ -185,16 +198,19 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             end
         end
     end
+    end
 
-    println("Graph computation")
+    println("\nGraph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
     # And even remove this fiber for the graph
     Vert = []
     Edg = []
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
     Viso = []
+    Vcon = []
 
-    println(LBcrit[2][1])
+    Lapp = [[],[]]
+
     for ind in 1:length(xcritpermut)
         i, j = xcritpermut[ind]
 
@@ -258,7 +274,7 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
         if i == 2
             # if it is an isolated point
             if isempty(nI[1]) && isempty(nI[2])
-                println("Remove appsing ($i,$j) (isolated)")
+                push!(Lapp[1], (i,j))
                 #pass
                 # We can add the isolated  vertex
                 # push!(Vert, [xcmid, ycmid])
@@ -270,10 +286,10 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             ## works for space curves without nodes   ##
             ############################################
             else
-                println("Remove appsing ($i,$j) (node)")
                 # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
                 push!(Edg, [Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]])
                 push!(Edg, [Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]])
+                push!(Lapp[2], (i,j))
             end
         else
             # We can add the vertex
@@ -287,6 +303,10 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             for k in nI[2]
                 push!(Edg, [length(Vert), Corr[i][j][3][k]])
             end
+            if length(C)>0 && i==length(params)
+                # If this is a control point
+                push!(Vcon, length(Vert))
+            end
         end
         ###########################
         # Above the critical point
@@ -296,7 +316,9 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
             push!(Edg, [Corr[i][j][1][end - k + 1], length(Vert)])  # left
             push!(Edg, [length(Vert), Corr[i][j][3][end - k + 1]])  # right
         end
+    end
 
+    println("Removed apparent singularities: $(length(Lapp[1])) isolated  $(length(Lapp[2])) nodes")
     #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
     #plot_graph(Vert, EdgPlot)
     #gui()
@@ -306,6 +328,10 @@ function compute_graph_param(f; generic=false, precx = 150,v=0, arb=false)
     if !(generic)
         Vert = [ changemat*v for v in Vert ]
     end
-end
-    return Vert, Edg
+
+    if length(C)>0
+        return (Vert, Edg), Vcon
+    else
+        return Vert, Edg
+    end
 end

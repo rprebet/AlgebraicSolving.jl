@@ -21,7 +21,7 @@ end
 function diff_list(p, v, n)
     Ldp = [p]
     for j in 1:n
-        push!(Ldb,derivative(Ldp[end], v))
+        push!(Ldp, derivative(Ldp[end], v))
     end
     return Ldp
 end

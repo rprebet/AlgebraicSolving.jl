@@ -1,6 +1,6 @@
 function Arb_to_rat(x)
 	r = radius(x)
-	return map(simplest_rational_inside, [x-2*r, x+2*r])
+	return map(simplest_rational_inside, [x-r, x+r])
 end
 
 function rat_to_Arb(x, prec)

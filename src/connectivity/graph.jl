@@ -5,7 +5,7 @@ function index_of(x, L)
    return findfirst(t->t==x,L)
 end
 
-function connected_components(G)
+function connected_components(G; Vemph=[])
     # Outputs subgraphs of the connected components
     ###########
     vert, edges = G
@@ -52,7 +52,22 @@ function connected_components(G)
         end
     end
 
-    return [ [[ vert[cv] for cv in components[i] ], grouped_edges[i]] for i in eachindex(components) ]
+    if length(Vemph)>0
+        CVemph = [ [] for _ in eachindex(components) ]
+        for i in eachindex(components)
+            for j in eachindex(components[i])
+                if components[i][j] in Vemph
+                    push!(CVemph[i], j)
+                end
+            end
+        end
+    end
+
+    if length(Vemph)>0
+        return [ [[ vert[cv] for cv in components[i] ], grouped_edges[i], CVemph[i]] for i in eachindex(components) ]
+    else
+        return [ [[ vert[cv] for cv in components[i] ], grouped_edges[i]] for i in eachindex(components) ]
+    end
 end
 
 function number_connected_components(G)
