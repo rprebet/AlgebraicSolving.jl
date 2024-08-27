@@ -3,7 +3,7 @@
 #using Plots, Colors
 #pythonplot()
 
-export compute_graph, connected_components, number_connected_components,
+export compute_graph, connected_components, number_connected_components, group_by_component,
  plot_graph, plot_graphs, plot_graph_comp, compute_param
 
 include("tools.jl")
@@ -334,4 +334,16 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     else
         return Vert, Edg
     end
+end
+
+function group_by_component(F::Vector{P}, C::Vector{P}; param=true, generic=true, precx=150, v=0, arb=true, int_coeff=false) where {P <: MPolyRingElem}
+    # Compute a graph homeomorphic to Z(F) and return the vertices identified by Z(C)
+    G, Vcon = compute_graph(F, C, param=param, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff)
+    # Compute the partition of the vertices in Vcon according to the connected component in G
+    sort!(Vcon)
+    CVcon = group_by_component(G, Vcon)
+    
+    # Convert the partition into abscissa order 
+    index_map = Dict((val, idx) for (idx, val) in enumerate(Vcon))
+    return [map(v -> index_map[v], C) for C in CVcon]
 end
