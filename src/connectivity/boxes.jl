@@ -39,7 +39,7 @@ function intersect_box(f, B; prec=100)
                     push!(L[i+2][2], j)
                 elseif overlap_inter(l, B[2])
                     prec *= 2
-                    #println("Increase precision to ", prec)
+                    println("Increase precision to ", prec)
                     flag = true
                     break
                 end

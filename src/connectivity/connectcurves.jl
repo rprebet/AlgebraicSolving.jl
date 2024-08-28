@@ -6,6 +6,9 @@
 export compute_graph, connected_components, number_connected_components, group_by_component,
  plot_graph, plot_graphs, plot_graph_comp, compute_param
 
+ # DEBUG
+ export subresultants, diff, diff_list
+
 include("tools.jl")
 include("subresultants.jl")
 include("isolate.jl")
@@ -39,6 +42,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         CD = lcm(map(denominator, collect(coefficients(f))))
         f *= CD
     end
+    #println(f)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
@@ -98,7 +102,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     ########################################################
     # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
     ### DEBUG: for now, only nodes for singular points, hardcode below ###
-    mult_to_factor = Dict(2=>[2])
+    mult_to_factor = Dict(2=>2:length(group_sqr))
     #########################################################
     mults = keys(mult_to_factor)
     Lfyk = diff_list(f, 2, maximum(mults))
@@ -129,9 +133,9 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     ## TODO : Refine only the intervals that need to be refined
     println("\nCompute intersections with critical boxes..")
     LPCside = Array{Any}(undef,length(LBcrit))
-    ndig = maximum([Int(floor(log10(length(LB)))) for LB in LBcrit])
+    ndig = maximum([Int(floor(log10(max(1,length(LB))))) for LB in LBcrit])
     for i in eachindex(LBcrit)
-        ndigi = Int(floor(log10(length(LBcrit[i]))))
+        ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
         LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
         precxtmp = precx 
         while true
@@ -177,7 +181,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
             # If it intersects on the bottom side
             if nPCside[1] == 1
                 # yinf: the intersection with the vertical side just below the extreme point
-                yinf = maximum([i for (i, yy) in pairs(I[s]) if yy[1] < ycrit[2]])
+                yinf = maximum([i for (i, yy) in pairs(I[s]) if yy[1] < ycrit[1]])
                 # We vertically enlarge the box until it intersects on the horizontal side
                 push!(LPCside[1][j][s + 2][2], yinf)
                 LPCside[1][j][1][2] = []
@@ -188,7 +192,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
             # If it intersects on the top side
             if nPCside[2] == 1 
                 # ymax: the intersection with the vertical side just above the extreme point
-                ymax = minimum([i for (i, yy) in pairs(I[s]) if yy[2] > ycrit[1]])
+                ymax = minimum([i for (i, yy) in pairs(I[s]) if yy[2] > ycrit[2]])
                 # We vertically enlarge the box until it intersects on the horizontal side
                 push!(LPCside[1][j][s + 2][2], ymax)
                 LPCside[1][j][2][2] = []
@@ -260,7 +264,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         # Below the critical point
         #println()
         #println(map(length,I))
-        #println(vcat(nI[1], nI[2], [length(I[1])+1]))
+        #println(nI[1],", ", nI[2], ", ", [length(I[1])+1])
         for k in 1:ymincrit-1
             push!(Vert, [xcmid, sum(I[1][k] + I[2][k])// 4])
             push!(Corr[i][j][2][1], length(Vert))
@@ -271,7 +275,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         # The critical point
         ##########################
         # If we are dealing with a node
-        if i == 2
+        if length(group_sqr)>1 && i == 2
             # if it is an isolated point
             if isempty(nI[1]) && isempty(nI[2])
                 push!(Lapp[1], (i,j))

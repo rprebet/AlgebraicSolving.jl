@@ -30,7 +30,7 @@ function change_ringvar(f::MPolyRingElem, newvarias_S::Vector{Symbol})
     return change_ringvar([f], newvarias_S)
 end
 
-function change_ringvar(F::Vector{P}, ind_newvarias::Vector{Int64}) where {P <: MPolyRingElem}
+function change_ringvar(F::Vector{P}, ind_newvarias::Union{Vector{I}, UnitRange{I}}) where {P <: MPolyRingElem, I <: Int64}
     R = parent(first(F))
     return change_ringvar(F, [R.S[i] for i in ind_newvarias])
 end

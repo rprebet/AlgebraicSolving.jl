@@ -5,6 +5,8 @@
 #using Nemo
 
 export computeRM, computepolarproj
+# DEBUG
+export change_ringvar, compute_minors
 
 include("Cannytools.jl")
 
@@ -25,15 +27,15 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
   for q in Q
       ## Fq ##
       if e > 0
-        hFq = change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], collect(1:e))
+        hFq = change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], e+1:nvarias)
         Fq = AlgebraicSolving.Ideal(hFq)
       else
         Fq = V
       end
       
       if dimV - e <= 1
-        push!(R, AlgebraicSolving.Ideal(vcat(Fq.gens, [fixvarias[j] - q[j] for j in 1:e])))
-      
+        curve = change_ringvar(Fq.gens, A.S)
+        push!(R, AlgebraicSolving.Ideal(vcat(curve, [fixvarias[j] - q[j] for j in 1:e])))
       else
         ## sing(Fq) ##
         #println("Compute first the singular points")
@@ -46,7 +48,8 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
 
         ## K(pi_2, Fq) ##
         K2Fq = computepolarproj(2, Fq, dimV-e, newvarias, output="minors")
-        push!(R, AlgebraicSolving.Ideal(vcat(K2Fq.gens, [fixvarias[j] - q[j] for j in 1:e])))
+        polar = change_ringvar(K2Fq.gens, A.S)
+        push!(R, AlgebraicSolving.Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
 
         ## Points with vertical tg in K(pi_2, Fq) ##
         K1WmFq = computepolarproj(2, K2Fq, 1, newvarias, output="interval", dimproj=0, verb=0)
