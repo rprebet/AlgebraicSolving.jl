@@ -42,7 +42,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         CD = lcm(map(denominator, collect(coefficients(f))))
         f *= CD
     end
-    #println(f)
+    println(f)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
@@ -322,7 +322,9 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         end
     end
 
-    println("Removed apparent singularities: $(length(Lapp[1])) isolated  $(length(Lapp[2])) nodes")
+    if Lapp != [[],[]]
+        println("Removed apparent singularities: $(length(Lapp[1])) isolated  $(length(Lapp[2])) nodes")
+    end
     #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
     #plot_graph(Vert, EdgPlot)
     #gui()

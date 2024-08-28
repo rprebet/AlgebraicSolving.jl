@@ -40,12 +40,12 @@ function deg_Alg(F, dim)
 end
 
 
-function compute_param(F; lfs = false)
+function compute_param(F; use_lfs = false, lfs = [])
     R = parent(first(F))
     varias, N = gens(R), nvars(R)
     DEG = deg_Alg(F,1)
 
-    if !lfs
+    if !use_lfs && length(lfs)==0
         # Identification of two generic variables for the parametrization")
         ivarias_gen = Vector{Int}(undef,0)
         ind = N
@@ -94,7 +94,7 @@ function compute_param(F; lfs = false)
         N = length(varias)
 
         F = [ evaluate(f, [ varias[i] for i in 1:Nold ]) for f in F ] 
-        lf_cfs = [ rand(ZZ(-100):ZZ(100), N) for _ in 1:2]
+        lf_cfs = vcat(lfs, [ rand(ZZ(-100):ZZ(100), N) for _ in 1:2-length(lfs)])
         append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
     end
     # Compute DEG+1 evaluations of the param (whose deg is bounded by DEG)
