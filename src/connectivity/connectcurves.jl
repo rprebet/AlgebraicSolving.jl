@@ -42,7 +42,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         CD = lcm(map(denominator, collect(coefficients(f))))
         f *= CD
     end
-    println(f)
+    #println(f)
     # Generic change of variables
     changemat = [1 0; 0 1]
     if  !generic
@@ -67,10 +67,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     end
     # Construct the parametrization of the critical points
     params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in group_sqr ];
-
-    if length(C)>0
-        push!(params, C)
-    end
+    append!(params, C)
     end
 
     if arb
@@ -144,16 +141,10 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
                 print("mult=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
                 pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
                 npcside = [length(n) for (I, n) in pcside]
-                if i == 1 && sum(npcside) > 2
+                if (i == 1 && sum(npcside) > 2) || (i > 1 && sum(npcside[1:2]) != 0)
                     precxtmp *= 2
-                    println("\nRefine extreme boxes along x-axis to precision ", precxtmp)
-                    refine_xboxes(params[1][1], LBcrit[1], precxtmp)
-                    flag = true
-                    break
-                elseif i > 1 && sum(npcside[1:2]) != 0
-                    precxtmp *= 2
-                    println("\nRefine singular boxes along x-axis to precision ", precxtmp)
-                    refine_xboxes(params[2][1], LBcrit[2], precxtmp)
+                    println("\nRefine boxes along x-axis to precision ", precxtmp)
+                    refine_xboxes(params[i][1], LBcrit[i], precxtmp)
                     flag = true
                     break
                 end
@@ -307,7 +298,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
             for k in nI[2]
                 push!(Edg, [length(Vert), Corr[i][j][3][k]])
             end
-            if length(C)>0 && i==length(params)
+            if i > length(params)-length(C)
                 # If this is a control point
                 push!(Vcon, length(Vert))
             end

@@ -26,8 +26,13 @@ function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: M
     return res 
 end
 
-function change_ringvar(f::MPolyRingElem, newvarias_S::Vector{Symbol})
-    return change_ringvar([f], newvarias_S)
+function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: PolyRingElem}
+    A, (x,) = polynomial_ring(QQ, [parent(first(F)).S])
+    return change_ringvar([ evaluate(f, x) for f in F ], newvarias_S)
+end
+
+function change_ringvar(f::Union{MPolyRingElem, PolyRingElem}, newvarias_S::Vector{Symbol})
+    return first(change_ringvar([f], newvarias_S))
 end
 
 function change_ringvar(F::Vector{P}, ind_newvarias::Union{Vector{I}, UnitRange{I}}) where {P <: MPolyRingElem, I <: Int64}
@@ -37,7 +42,7 @@ end
 
 function change_ringvar(f::MPolyRingElem, ind_newvarias::Union{Vector{I}, UnitRange{I}}) where {I <: Int64}
     R = parent(f)
-    return change_ringvar([f], [R.S[i] for i in ind_newvarias])
+    return first(change_ringvar([f], [R.S[i] for i in ind_newvarias]))
 end
 
 # Return the polynomials in F, but injected in the polynomial ring with the variables occuring in F 
@@ -50,8 +55,9 @@ function change_ringvar(F::Vector{P}) where {P <: MPolyRingElem}
 end
 
 function change_ringvar(f::MPolyRingElem)
-    change_ringvar([f])
+    return first(change_ringvar([f]))
 end
+
 
 
 function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0)
