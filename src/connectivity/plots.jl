@@ -26,7 +26,7 @@ function plot_graphs(CG; width=3, vert=true)
             plot!([v1[1], v2[1]], [v1[2], v2[2]], lc=col[j+2], lw=width)
         end
         if vert
-            scatter!( map(Float64, [v[1] for v in V]),  map(Float64, [v[2] for v in V]), mc="black", m=:diamond)
+            scatter!( map(Float64, [v[1] for v in V]),  map(Float64, [v[2] for v in V]), mc=col[j+2], m=:diamond)
         end
     end
     gui()

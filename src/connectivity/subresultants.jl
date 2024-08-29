@@ -41,7 +41,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
     if degree(P) < degree(Q)
         P, Q = Q, P
     end
-    S = []
+    S = [Q]
     s = leading_coefficient(Q)^(degree(P)-degree(Q))
     A = Q
     B = pseudorem(P,-Q)

@@ -75,6 +75,13 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         println("\nIsolating critical values with precision ", precx,"..")
         @time begin
         xcrit = [ isolate(first(p), prec=precx) for p in params ]
+        for i in eachindex(xcrit)
+            for j in eachindex(xcrit[i])
+                if xcrit[i][j][1]==xcrit[i][j][2]
+                    xcrit[i][j] = [xcrit[i][j][1]-1//ZZ(1)<<precx, xcrit[i][j][1]+1//ZZ(1)<<precx]
+                end
+            end
+        end
         xcritpermut = order_permut2d(xcrit);
         end
 
@@ -89,6 +96,15 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
         @time begin
         LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx, interval=true),by=t->t[1]) for p in params ]
+        for i in eachindex(LBcrit)
+            for j in eachindex(LBcrit[i])
+                for k in eachindex(LBcrit[i][j])
+                    if LBcrit[i][j][k][1]==LBcrit[i][j][k][2]
+                        LBcrit[i][j][k] = [LBcrit[i][j][k][1]-1//ZZ(1)<<precx, LBcrit[i][j][k][1]+1//ZZ(1)<<precx]
+                    end
+                end
+            end
+        end
         xcrit = [ [ B[1] for B in lbcrit ] for lbcrit in LBcrit ]
         xcritpermut = order_permut2d(xcrit);
         end

@@ -10,8 +10,12 @@ function rat_to_Arb(x, prec)
 end
 
 function evaluate_Arb(f, x, prec)
-	cf = coefficients_of_univariate(f)
-	return evalpoly(ArbField(prec)(x), cf) 
+	if is_zero(f)
+		return ArbField(prec)(0)
+	else
+		cf = coefficients_of_univariate(f)
+		return evalpoly(ArbField(prec)(x), cf) 
+	end
 end
 
 function Arb_eval(f, B, prec)
