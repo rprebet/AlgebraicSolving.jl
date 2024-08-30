@@ -20,14 +20,15 @@ function plot_graphs(CG; width=3, vert=true)
     plot(legend=false)
     col = distinguishable_colors(length(CG)+2)
     for j in eachindex(CG)
-        V, E = CG[j]
+        (V, E), CVemph = length(CG[j][1])==2 ? CG[j] : (CG[j], [])
         for e in E
             v1, v2 = [ map(Float64, V[ee]) for ee in e ]
             plot!([v1[1], v2[1]], [v1[2], v2[2]], lc=col[j+2], lw=width)
         end
         if vert
-            scatter!( map(Float64, [v[1] for v in V]),  map(Float64, [v[2] for v in V]), mc=col[j+2], m=:diamond)
+            scatter!( map(Float64, [v[1] for v in V]),  map(Float64, [v[2] for v in V]), mc="black", m=:diamond)
         end
+        scatter!( map(Float64, [V[i][1] for i in CVemph]),  map(Float64, [V[i][2] for i in CVemph]), mc=col[j+2], m=:diamond)
     end
     gui()
 end
