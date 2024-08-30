@@ -218,7 +218,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     Edg = []
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
     Viso = []
-    Vcon = []
+    Vcon = [ [] for _ in 1:length(C) ]
 
     Lapp = [[],[]]
 
@@ -316,7 +316,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
             end
             if i > length(params)-length(C)
                 # If this is a control point
-                push!(Vcon, length(Vert))
+                push!(Vcon[i + length(C) - length(params)], length(Vert))
             end
         end
         ###########################
