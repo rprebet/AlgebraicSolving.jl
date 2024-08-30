@@ -137,7 +137,7 @@ function compute_param(F; use_lfs = false, lfs = [])
         end
 
         C = [ collect(coefficients(c)) for c in COEFFS ]
-        POL_term = [C[i][j]*x^(j-1)*y^(i-1) for i in 1:length(C) for j in 1:length(C[i])]
+        POL_term = [C[i][j]*x^(i-1)*y^(j-1) for i in 1:length(C) for j in 1:length(C[i])]
         POL = length(POL_term) > 0 ? sum(POL_term) : T(0) 
         
         push!(POLY_PARAM, POL)
