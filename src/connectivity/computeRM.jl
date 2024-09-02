@@ -6,7 +6,7 @@
 
 export computeRM, computepolarproj
 # DEBUG
-export change_ringvar, compute_minors
+export change_ringvar, compute_minors, detmpoly
 
 include("Cannytools.jl")
 
@@ -58,6 +58,8 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
         K1W = vcat(K1Fq, K1WmFq)
         K1WRat = MidRationalPoints(getindex.(K1W,1))
         newQ = [ vcat(q, [kv]) for kv in K1WRat ]
+        # Heuristic to be proven
+        # newQ = newQ[2:end-1]
 
         RFq = computeRM(V, dimV, newQ)
 
