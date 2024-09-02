@@ -5,7 +5,7 @@
 #using AlgebraicSolving
 #import Nemo: coefficients, exponent_vectors, coeff, interpolate, MPolyBuildCtx, push_term!, finish, gens
 
-export compute_param
+export compute_param, param_newvars
 
 function rem_var(f, i)
     # Remove the occurence of the ith variable
@@ -145,6 +145,16 @@ function compute_param(F; use_lfs = false, lfs = [])
 
     return [R.S, lf_cfs, POLY_PARAM[1], POLY_PARAM[2], POLY_PARAM[3:end]]
 end
+
+function param_newvars(F::Vector{P} where P <: MPolyRingElem, Svars::Vector{Symbol}, cfs_lf::Vector{Vector{I}} where I<:Union{ZZRingElem, QQFieldElem})
+    eq = change_ringvar(F, Svars)
+	newvarias = gens(parent(first(eq)))
+	neweq = vcat(eq, [ transpose(lf)*newvarias for lf in cfs_lf ])
+
+	C = rational_parametrization(Ideal(neweq))
+	return change_ringvar([C.elim, C.elim == -1 ? C.elim : C.param[end], C.denom], [:x,:y])
+end
+
 
 #=
 # Tests
