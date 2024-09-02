@@ -105,7 +105,7 @@ function combinations(a, n)
         if length(chosen) == n
             return [chosen]
         elseif start > length(a)
-            return []
+            return Vector{Int}([])
         else
             # Include the current element and recurse
             include_current = _combinations(a, n, start + 1, [chosen; a[start]])
@@ -114,7 +114,7 @@ function combinations(a, n)
             return vcat(include_current, exclude_current)
         end
     end
-    return _combinations(a, n, 1, [])
+    return _combinations(a, n, 1, Vector{Int}([]))
 end
 
 function detmpoly(A::Matrix{QQMPolyRingElem}, R)
