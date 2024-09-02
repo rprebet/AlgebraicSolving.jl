@@ -3,7 +3,7 @@
 #using Plots, Colors
 #pythonplot()
 
-export compute_graph, connected_components, number_connected_components, group_by_component,
+export compute_graph, connected_components, number_connected_components, group_by_component, merge_graphs,
  plot_graph, plot_graphs, plot_graph_comp, compute_param
 
  # DEBUG
@@ -17,20 +17,7 @@ include("graph.jl")
 include("plots.jl")
 include("arbtools.jl")
 
-function compute_graph(F, C=[]; param=true, generic=true, precx=150, v=0, arb=true, int_coeff=false)
-    if !(param)
-        println("Compute rational parametrization...")
-        @time begin
-            Fparam = compute_param(F)[3]
-        end
-    else
-        Fparam = F[1]
-    end
-
-    return compute_graph_param(Fparam, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff)
-end
-
-function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, int_coeff=false)
+function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf=true)  where (P <: MPolyRingElem)
     println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     println("!! Careful: this is a WIP version !!")
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -149,12 +136,13 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     ndig = maximum([Int(floor(log10(max(1,length(LB))))) for LB in LBcrit])
     for i in eachindex(LBcrit)
         ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
+        Ptype = i > length(LBcrit) - length(C) ? "Pcon" : "mult"
         LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
         precxtmp = precx 
         while true
             flag = false
             for j in eachindex(LBcrit[i])
-                print("mult=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
+                print("$Ptype=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
                 pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
                 npcside = [length(n) for (I, n) in pcside]
                 if (i == 1 && sum(npcside) > 2) || (i > 1 && sum(npcside[1:2]) != 0)
@@ -214,6 +202,8 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     println("\nGraph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
     # And even remove this fiber for the graph
+    fct = outf ? Float64 : identity
+    
     Vert = []
     Edg = []
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
@@ -237,8 +227,8 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         I = [ l[1] for l in PCside[3:end] ]
         nI = [ l[2] for l in PCside[3:end] ]
 
-        xcmid = sum(LBcrit[i][j][1])//2
-        ycmid = sum(LBcrit[i][j][2])//2
+        xcmid = sum(LBcrit[i][j][1])//2 |> fct
+        ycmid = sum(LBcrit[i][j][2])//2 |> fct
 
         ymincrit = minimum(vcat(nI[1], nI[2], [length(I[1])+1]))
         # Construct vertices
@@ -250,7 +240,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
             end
         else
             for k in 1:length(I[1])
-                push!(Vert, [xcrit[i][j][1], sum(I[1][k])//2])
+                push!(Vert, map(fct, [xcrit[i][j][1], sum(I[1][k])//2]))
                 push!(Corr[i][j][1], length(Vert))
             end
         end
@@ -258,12 +248,12 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         # On the vertical right side
         if ind < length(xcritpermut)
             for k in 1:length(I[2])
-                push!(Vert, [(xcrit[i][j][2] + xcrit[i2][j2][1])//2, sum(I[2][k] + I2L[k])//4])
+                push!(Vert, map(fct, [(xcrit[i][j][2] + xcrit[i2][j2][1])//2, sum(I[2][k] + I2L[k])//4]))
                 push!(Corr[i][j][3], length(Vert))
             end
         else
             for k in 1:length(I[2])
-                push!(Vert, [xcrit[i][j][2], sum(I[2][k])//2])
+                push!(Vert, map(fct, [xcrit[i][j][2], sum(I[2][k])//2]))
                 push!(Corr[i][j][3], length(Vert))
             end
         end
@@ -273,7 +263,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         #println(map(length,I))
         #println(nI[1],", ", nI[2], ", ", [length(I[1])+1])
         for k in 1:ymincrit-1
-            push!(Vert, [xcmid, sum(I[1][k] + I[2][k])// 4])
+            push!(Vert, map(fct, [xcmid, sum(I[1][k] + I[2][k])// 4]))
             push!(Corr[i][j][2][1], length(Vert))
             push!(Edg, [Corr[i][j][1][k], length(Vert)])  # left
             push!(Edg, [length(Vert), Corr[i][j][3][k]])  # right
@@ -322,7 +312,7 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
         ###########################
         # Above the critical point
         for k=(length(I[1]) - length(nI[1]) - ymincrit+1):-1:1
-            push!(Vert, [xcmid, sum(I[1][end - k + 1] + I[2][end - k + 1])//4])
+            push!(Vert, map(fct,[xcmid, sum(I[1][end - k + 1] + I[2][end - k + 1])//4]))
             push!(Corr[i][j][2][3], length(Vert))
             push!(Edg, [Corr[i][j][1][end - k + 1], length(Vert)])  # left
             push!(Edg, [length(Vert), Corr[i][j][3][end - k + 1]])  # right
@@ -349,9 +339,21 @@ function compute_graph_param(f, C=[]; generic=true, precx = 150, v=0, arb=true, 
     end
 end
 
-function group_by_component(F::Vector{P}, C::Vector{P}; param=true, generic=true, precx=150, v=0, arb=true, int_coeff=false) where {P <: MPolyRingElem}
+function compute_graph(f::P, C::Dict{Int,Vector{P}}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
+    G, Vcon = compute_graph(f, collect(values(C)), generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf)
+    VC = Dict([ k => Vcon[i] for (i,k) in enumerate(keys(C)) ])
+    return G, VC
+end
+
+function compute_graph(f::P, C::Vector{P}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
+    G, (Vcon,) = compute_graph(f, [C], generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf = outf)
+    return G, Vcon
+end
+
+################################################################
+function group_by_component(f::P, C::Vector{P}; generic=true, precx=150, v=0, arb=true, int_coeff=false) where {P <: MPolyRingElem}
     # Compute a graph homeomorphic to Z(F) and return the vertices identified by Z(C)
-    G, Vcon = compute_graph(F, C, param=param, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff)
+    G, Vcon = compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff)
     # Compute the partition of the vertices in Vcon according to the connected component in G
     sort!(Vcon)
     CVcon = group_by_component(G, Vcon)
