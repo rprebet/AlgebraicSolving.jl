@@ -202,10 +202,10 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     println("\nGraph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
     # And even remove this fiber for the graph
-    fct = outf ? Float64 : identity
-    
-    Vert = []
-    Edg = []
+    fct, typeout = outf ? (Float64, Float64) : (identity, QQFieldElem)
+
+    Vert = Vector{Tuple{typeout, typeout}}()
+    Edg = Vector{Tuple{Int, Int}}()
     Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
     Viso = []
     Vcon = [ [] for _ in 1:length(C) ]
@@ -240,7 +240,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             end
         else
             for k in 1:length(I[1])
-                push!(Vert, map(fct, [xcrit[i][j][1], sum(I[1][k])//2]))
+                push!(Vert, (xcrit[i][j][1], sum(I[1][k])//2) .|> fct)
                 push!(Corr[i][j][1], length(Vert))
             end
         end
@@ -248,12 +248,12 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         # On the vertical right side
         if ind < length(xcritpermut)
             for k in 1:length(I[2])
-                push!(Vert, map(fct, [(xcrit[i][j][2] + xcrit[i2][j2][1])//2, sum(I[2][k] + I2L[k])//4]))
+                push!(Vert, ((xcrit[i][j][2] + xcrit[i2][j2][1])//2, sum(I[2][k] + I2L[k])//4) .|> fct)
                 push!(Corr[i][j][3], length(Vert))
             end
         else
             for k in 1:length(I[2])
-                push!(Vert, map(fct, [xcrit[i][j][2], sum(I[2][k])//2]))
+                push!(Vert, (xcrit[i][j][2], sum(I[2][k])//2) .|> fct)
                 push!(Corr[i][j][3], length(Vert))
             end
         end
@@ -263,10 +263,10 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         #println(map(length,I))
         #println(nI[1],", ", nI[2], ", ", [length(I[1])+1])
         for k in 1:ymincrit-1
-            push!(Vert, map(fct, [xcmid, sum(I[1][k] + I[2][k])// 4]))
+            push!(Vert, (xcmid, sum(I[1][k] + I[2][k])// 4) .|> fct)
             push!(Corr[i][j][2][1], length(Vert))
-            push!(Edg, [Corr[i][j][1][k], length(Vert)])  # left
-            push!(Edg, [length(Vert), Corr[i][j][3][k]])  # right
+            push!(Edg, (Corr[i][j][1][k], length(Vert)))  # left
+            push!(Edg, (length(Vert), Corr[i][j][3][k]))  # right
         end
         ###########################
         # The critical point
@@ -288,21 +288,21 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             ############################################
             else
                 # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
-                push!(Edg, [Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]])
-                push!(Edg, [Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]])
+                push!(Edg, (Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]))
+                push!(Edg, (Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]))
                 push!(Lapp[2], (i,j))
             end
         else
             # We can add the vertex
-            push!(Vert, [xcmid, ycmid])
+            push!(Vert, (xcmid, ycmid))
             push!(Corr[i][j][2][2], length(Vert))
             # We connect to the vertical left side of the critical box
             for k in nI[1]
-                push!(Edg, [Corr[i][j][1][k], length(Vert)])
+                push!(Edg, (Corr[i][j][1][k], length(Vert)))
             end
             # We connect to the vertical right side of the critical box
             for k in nI[2]
-                push!(Edg, [length(Vert), Corr[i][j][3][k]])
+                push!(Edg, (length(Vert), Corr[i][j][3][k]))
             end
             if i > length(params)-length(C)
                 # If this is a control point
@@ -312,10 +312,10 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         ###########################
         # Above the critical point
         for k=(length(I[1]) - length(nI[1]) - ymincrit+1):-1:1
-            push!(Vert, map(fct,[xcmid, sum(I[1][end - k + 1] + I[2][end - k + 1])//4]))
+            push!(Vert, (xcmid, sum(I[1][end - k + 1] + I[2][end - k + 1])//4) .|> fct)
             push!(Corr[i][j][2][3], length(Vert))
-            push!(Edg, [Corr[i][j][1][end - k + 1], length(Vert)])  # left
-            push!(Edg, [length(Vert), Corr[i][j][3][end - k + 1]])  # right
+            push!(Edg, (Corr[i][j][1][end - k + 1], length(Vert)))  # left
+            push!(Edg, (length(Vert), Corr[i][j][3][end - k + 1]))  # right
         end
     end
 
@@ -341,7 +341,7 @@ end
 
 function compute_graph(f::P, C::Dict{Int,Vector{P}}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
     G, Vcon = compute_graph(f, collect(values(C)), generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf)
-    VC = Dict([ k => Vcon[i] for (i,k) in enumerate(keys(C)) ])
+    VC = Dict{Int64, Vector{Int}}([ k => Vcon[i] for (i,k) in enumerate(keys(C)) ])
     return G, VC
 end
 
