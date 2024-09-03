@@ -5,7 +5,7 @@ function index_of(x, L)
    return findfirst(t->t==x,L)
 end
 
-function connected_components(G; Vemph=[], ind_abs=false)
+function connected_components(G, Vemph=[]; ind_abs=false)
     # Outputs subgraphs of the connected components
     ###########
     vert, edges = G
@@ -57,11 +57,7 @@ function connected_components(G; Vemph=[], ind_abs=false)
         for i in eachindex(components)
             for j in eachindex(components[i])
                 if components[i][j] in Vemph
-                    if ind_abs
-                        push!(CVemph[i], components[i][j])
-                    else
-                        push!(CVemph[i], j)
-                    end
+                    push!(CVemph[i], ind_abs ? components[i][j] : j)
                 end
             end
         end
@@ -75,7 +71,7 @@ function connected_components(G; Vemph=[], ind_abs=false)
 end
 
 function group_by_component(G, V)
-    CG = connected_components(G, Vemph=V, ind_abs=true)
+    CG = connected_components(G, V, ind_abs=true)
     return filter(c->length(c)>0, [ C[2] for C in CG ])
 end
 
@@ -84,45 +80,47 @@ function number_connected_components(G)
 end
 
 
-function merge_graphs(LG, VC)
+function merge_graphs(LG::Vector{Tuple{Vector{Tuple{T,T}}, Vector{Tuple{Int,Int}}}} where T<:Union{Float64, QQFieldElem}, LVC::Vector{Dict{Int, Vector{Int}}})
     # Initialize merged graph with the vertices and edges of the first graph
-    V_merged, E_merged = deepcopy(LG[1])
+    Vtot, Etot = deepcopy(LG[1])
 
     # To keep track of the mapping of vertices from each graph to the merged graph
-    all_vertex_maps = [Dict(i => i for i in 1:length(V_merged))]
+    all_vertex_maps = [Dict(i => i for i in 1:length(Vtot))]
 
     # Iterate over each graph G_i in LG starting from the second graph
     for i in 2:length(LG)
-        V_i, E_i = LG[i]  # Vertices and edges of the current graph
-        VC_i = VC[i]      # Dictionary of common vertices for the current graph
+        Vi, Ei = LG[i]  # Vertices and edges of the current graph
 
-        # Dictionary to map vertices of G_i to their new indices in V_merged
+        # Dictionary to map vertices of Gi to their new indices in Vtot
         vertex_index_map = Dict()
 
-        # Step 1: Map common vertices from G_i to existing vertices in V_merged
-        for (k, common_indices) in VC_i
+        # Step 1: Map common vertices from Gi to existing vertices in Vtot
+        for (k, common_indices) in LVC[i]
             if k < i
-                # Map each common vertex in G_i to its corresponding vertex in G_k (already merged)
+                # Map each common vertex in Gi to its corresponding vertex in Gk (already merged)
                 for (j, idx) in enumerate(common_indices)
-                    vertex_index_map[idx] = all_vertex_maps[k][VC[k][i][j]]
+                    vertex_index_map[idx] = all_vertex_maps[k][LVC[k][i][j]]
                 end
             end
         end
 
-        # Step 2: Add non-common vertices from G_i to V_merged
-        for idx in 1:length(V_i)
+        # Step 2: Add non-common vertices from Gi to Vtot
+        for idx in 1:length(Vi)
             if !haskey(vertex_index_map, idx)  # If not already mapped, it's a new vertex
-                vertex_index_map[idx] = push!(V_merged, V_i[idx]) |> length
+                vertex_index_map[idx] = push!(Vtot, Vi[idx]) |> length
             end
         end
+        # Step 3: Merge edges of Gi into the merged graph
+        new_edges = [(vertex_index_map[i], vertex_index_map[j]) for (i, j) in Ei]
+        append!(Etot, new_edges)
 
-        # Step 3: Merge edges of G_i into the merged graph
-        new_edges = [(vertex_index_map[i], vertex_index_map[j]) for (i, j) in E_i]
-        append!(E_merged, new_edges)
-
-        # Store the vertex index mapping for G_i for future merges
+        # Store the vertex index mapping for Gi for future merges
         push!(all_vertex_maps, vertex_index_map)
     end
 
-    return V_merged, E_merged
+    return Vtot, Etot
+end
+
+function merge_graphs(LGVC::Vector{Tuple{Tuple{Vector{Tuple{T, T}}, Vector{Tuple{Int64, Int64}}}, Dict{Int64, Vector{Int64}}}} where T<:Union{Float64, QQFieldElem})
+    return merge_graphs(first.(LGVC), last.(LGVC))
 end
