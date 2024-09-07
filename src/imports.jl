@@ -5,6 +5,7 @@ using Nemo
 using LinearAlgebra
 using StaticArrays
 using Plots, Colors
+using Primes
 #pythonplot()
 
 import Plots: plot

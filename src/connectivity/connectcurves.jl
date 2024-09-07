@@ -7,7 +7,7 @@ export compute_graph, connected_components, number_connected_components, group_b
  plot_graph, plot_graphs, plot_graph_comp, compute_param
 
  # DEBUG
- export subresultants, diff, diff_list
+ export mmod_subresultants, subresultants, diff, diff_list
 
 include("tools.jl")
 include("subresultants.jl")

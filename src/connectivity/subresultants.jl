@@ -49,6 +49,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
     while true
         d = degree(A)
         e = degree(B)
+        println("($d,$e)")
         if iszero(B)
             return S
         end
@@ -85,7 +86,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
         if e == 0
             return S
         end
-        B = pseudorem(A,-B) / (s^delta * leading_coefficient(A))
+        @time B = pseudorem(A,-B) / (s^delta * leading_coefficient(A))
         A = copy(C)
         s = leading_coefficient(A)
     end
@@ -134,4 +135,28 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false
     end
 
     return newsr
+end
+
+function mmod_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false) where T <: RingElement
+    prim = nextprime(2^(30))
+    L1, primprod = [], ZZ(1)
+    i=1
+    while true
+        print("$i, ")
+        if !all([ divides(ZZ(prim), evaluate(leading_coefficient(l, 2),[0,0]))[1] for l in [P,Q] ])
+            L2 = deepcopy(L1)
+            Pprim, Qprim = [ change_coefficient_ring(GF(prim), poly) for poly in [P,Q] ]
+            sr = subresultants(Pprim, Qprim, idx)[1]
+            L1 = lift.(Ref(ZZ), coefficients_of_univariate(sr))
+            if L2 != []
+                L1 = [ crt(L2[i], primprod, L1[i], ZZ(prim), true) for i in 1:length(L2) ]
+            end
+            primprod *= ZZ(prim)
+            L1 != L2 || break
+        end
+        prim = nextprime(prim+1)
+        i+=1
+    end
+    println()
+    return L1
 end
