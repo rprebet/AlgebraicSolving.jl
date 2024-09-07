@@ -98,10 +98,13 @@ function compute_param(F; use_lfs = false, lfs = [])
         append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
     end
     # Compute DEG+1 evaluations of the param (whose deg is bounded by DEG)
-    PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,0)
-    _values = Vector{QQFieldElem}(undef,0)
-    i = 1
-    while length(_values) < DEG+2
+    println("Parametrization step...")
+    @time begin
+    PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,DEG+2)
+    _values = Vector{QQFieldElem}(undef,DEG+2)
+    i, c = 1, 0
+    while c < DEG+2
+        #println("$c/ $(DEG+2)")
         if i > 2*(DEG+2)
             error("Too many bad specializations")
         end
@@ -109,14 +112,15 @@ function compute_param(F; use_lfs = false, lfs = [])
         #try
             Feval = [ evaluate(f, [N-1], [QQ(i)]) for f in F ]
             Feval = [ rem_var(f, N-1) for f in Feval ]
-            r = rational_parametrization(Ideal(Feval))
+            r = rational_parametrization(Ideal(Feval), nr_thrds=Threads.nthreads())
             # For lifting: the same variable must be chosen for the param
             if  r.vars == rem_ind(R.S, N-1)
                 lc = leading_coefficient(r.elim)
                 # TODO: why dividing by lc ?
                 rr = [ p/lc for p in vcat(r.elim, r.denom, r.param) ]
-                push!(PARAM, rr)
-                push!(_values, QQ(i))
+                PARAM[i] = rr
+                _values[i] = QQ(i)
+                c += 1
             else
                 println("bad specialization: ", i)
             end
@@ -125,22 +129,29 @@ function compute_param(F; use_lfs = false, lfs = [])
         #end
         i += 1
     end
+    end
 
     # Interpolate each coefficient of each poly in the param 
-    POLY_PARAM = Vector{QQMPolyRingElem}(undef,0)
+    println("Interpolation step...")
+    @time begin
+    POLY_PARAM = Vector{QQMPolyRingElem}(undef,N)
     T, (x,y) = polynomial_ring(QQ, [:x,:y])
-    for count in 1:N
-        COEFFS = []
-        for deg in 0:DEG
-            _evals = [ coeff(PARAM[i][count], deg) for i in 1:length(PARAM)]
-            push!(COEFFS, interpolate(polynomial_ring(QQ,"u")[1], _values, _evals))
+    A, u = polynomial_ring(QQ, :u)
+    Threads.@threads for count in 1:N
+        #println("$count/$N")
+        COEFFS = Vector{QQPolyRingElem}(undef, DEG+1)
+        Threads.@threads for deg in 0:DEG
+            #println("$deg/$DEG")
+            _evals = [coeff(PARAM[i][count], deg) for i in 1:length(PARAM)]
+            COEFFS[deg+1] = interpolate(A, _values, _evals)
         end
 
         C = [ collect(coefficients(c)) for c in COEFFS ]
         POL_term = [C[i][j]*x^(i-1)*y^(j-1) for i in 1:length(C) for j in 1:length(C[i])]
         POL = length(POL_term) > 0 ? sum(POL_term) : T(0) 
         
-        push!(POLY_PARAM, POL)
+        POLY_PARAM[count] = POL
+    end
     end
 
     return [R.S, lf_cfs, POLY_PARAM[1], POLY_PARAM[2], POLY_PARAM[3:end]]
