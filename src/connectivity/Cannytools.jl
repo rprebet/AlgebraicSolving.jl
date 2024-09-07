@@ -60,7 +60,7 @@ end
 
 
 
-function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0)
+function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
     @assert output in ["minors", "groebner", "real", "parametric", "interval"] "Wrong output parameter"
     R = parent(V)
@@ -72,11 +72,11 @@ function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; d
     hW = vcat(hV, compute_minors(sizeminors, JW, R))
      output_functions = Dict(
         "minors" => x -> x,
-        "groebner" => x -> groebner_basis(x, info_level=verb),
-        "real" => x -> real_solutions(x, info_level=verb),
-        "interval" => x -> real_solutions(x, interval=true, info_level=verb),
+        "groebner" => x -> groebner_basis(x, info_level=verb,nr_thrds=nr_thrds),
+        "real" => x -> real_solutions(x, info_level=verb,nr_thrds=nr_thrds),
+        "interval" => x -> real_solutions(x, interval=true, info_level=verb,nr_thrds=nr_thrds),
         #"interval" => x -> inter_solutions(x, info_level=verb),
-        "parametric" => x -> rational_parametrization(x, info_level=verb)
+        "parametric" => x -> rational_parametrization(x, info_level=verb,nr_thrds=nr_thrds)
     )
 
     return output_functions[output](AlgebraicSolving.Ideal(hW))
