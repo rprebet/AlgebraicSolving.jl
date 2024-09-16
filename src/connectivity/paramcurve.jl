@@ -39,8 +39,11 @@ function deg_Alg(F, dim)
     return degree(r.elim)
 end
 
+function compute_param(I::Ideal{P} where P<:MPolyRingElem; use_lfs = false, lfs = [])
+    return compute_param(I.gens, use_lfs = use_lfs, lfs = lfs)
+end
 
-function compute_param(F; use_lfs = false, lfs = [])
+function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs = [])
     R = parent(first(F))
     varias, N = gens(R), nvars(R)
     DEG = deg_Alg(F,1)
