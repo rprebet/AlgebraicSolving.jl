@@ -58,8 +58,6 @@ function change_ringvar(f::MPolyRingElem)
     return first(change_ringvar([f]))
 end
 
-
-
 function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
     @assert output in ["minors", "groebner", "real", "parametric", "interval"] "Wrong output parameter"
@@ -67,7 +65,7 @@ function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; d
     n, hV = R.nvars, V.gens
     c = n - dimV
 
-    JW = [ derivative(f, k) for k=j+1:n, f in hV ]
+    JW = transpose([ derivative(f, k) for k=j+1:n, f in hV ])
     sizeminors = c + dimproj - (j-1)
     hW = vcat(hV, compute_minors(sizeminors, JW, R))
      output_functions = Dict(
@@ -75,7 +73,32 @@ function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; d
         "groebner" => x -> groebner_basis(x, info_level=verb,nr_thrds=nr_thrds),
         "real" => x -> real_solutions(x, info_level=verb,nr_thrds=nr_thrds),
         "interval" => x -> real_solutions(x, interval=true, info_level=verb,nr_thrds=nr_thrds),
-        #"interval" => x -> inter_solutions(x, info_level=verb),
+        "parametric" => x -> rational_parametrization(x, info_level=verb,nr_thrds=nr_thrds)
+    )
+
+    return output_functions[output](AlgebraicSolving.Ideal(hW))
+end
+
+function computepolarphi(j::Int, V::AlgebraicSolving.Ideal, phi::MPolyRingElem, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
+    # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
+    @assert output in ["minors", "groebner", "real", "parametric", "interval"] "Wrong output parameter"
+    R = parent(V)
+    n, hV = R.nvars, V.gens
+    c = n - dimV
+
+    if j==0
+        JW = transpose([ derivative(f, k) for k=1:n, f in hV ])
+        sizeminors = c
+    else
+        JW = transpose([ derivative(f, k) for k=j:n, f in [hV;[phi]] ])
+        sizeminors = c + 1 + dimproj - (j-1)
+    end
+    hW = vcat(hV, compute_minors(sizeminors, JW, R))
+     output_functions = Dict(
+        "minors" => x -> x,
+        "groebner" => x -> groebner_basis(x, info_level=verb,nr_thrds=nr_thrds),
+        "real" => x -> real_solutions(x, info_level=verb,nr_thrds=nr_thrds),
+        "interval" => x -> real_solutions(x, interval=true, info_level=verb,nr_thrds=nr_thrds),
         "parametric" => x -> rational_parametrization(x, info_level=verb,nr_thrds=nr_thrds)
     )
 
