@@ -1,6 +1,6 @@
 
 ## Plot functions
-function plot_graph(G, Vemph::Vector{Vector{T}}=Vector{Vector{T}}(); color="red", width=3, vert=true, subplt=false) where T<:Any
+function plot_graph(G, Vemph::Vector{Vector{T}} where T<:Any; color="red", width=3, vert=true, subplt=false)
     if !subplt 
         println("Plotting the graph")
         plot(legend=false)
@@ -17,7 +17,11 @@ function plot_graph(G, Vemph::Vector{Vector{T}}=Vector{Vector{T}}(); color="red"
     for i in 1:length(Vemph)
         scatter!( map(Float64, [V[j][1] for j in Vemph[i]]),  map(Float64, [V[j][2] for j in Vemph[i]]), mc=color, m=:diamond)
     end
-    #gui()
+    subplt || gui()
+end
+
+function plot_graph(G; color="red", width=3, vert=true, subplt=false)
+    plot_graph(G, Vector{Vector{QQMPolyRingElem}}(); color=color, width=width, vert=vert, subplt=subplt)
 end
 
 function plot_graph(G, Vemph::Vector{T} where T<:Any; color="red", width=3, vert=true, subplt=false)
@@ -38,7 +42,7 @@ function plot_graphs(CG; width=3, vert=true, subplt=false)
         G, CVemph = length(CG[j][1])==2 ? CG[j] : (CG[j], Vector{Int}())
         plot_graph(G, CVemph, color=col[j+2], subplt=true)
     end
-    gui()
+    subplt || gui()
 end
 
 function plot_graph_comp(G, Vemph=[]; width=3, vert=true)
@@ -46,5 +50,5 @@ function plot_graph_comp(G, Vemph=[]; width=3, vert=true)
     plot(legend=false)
     CG = connected_components(G, Vemph)
     plot_graphs(CG, width=width, vert=vert, subplt=true)
-    gui()
+    subplt || gui()
 end
