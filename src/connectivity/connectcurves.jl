@@ -7,7 +7,7 @@ export compute_graph, connected_components, number_connected_components, group_b
  plot_graph, plot_graphs, plot_graph_comp, compute_param
 
  # DEBUG
- export mmod_subresultants, subresultants, diff, diff_list
+ export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd
 
 include("tools.jl")
 include("subresultants.jl")
@@ -329,7 +329,11 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     #plot_graph_comp(Vert,CEdg)
     # Operate inverse change of variable if necessary
     if !(generic)
-        Vert = [ changemat*v for v in Vert ]
+        for i in eachindex(Vert)
+            vx,vy = Vert[i]
+            vx,vy = Float64.(changemat*[vx, vy])
+            Vert = [ (vx, vy) for v in Vert ]
+        end
     end
 
     if length(C)>0
