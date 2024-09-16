@@ -49,7 +49,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
     while true
         d = degree(A)
         e = degree(B)
-        println("($d,$e)")
+        #println("($d,$e)")
         if iszero(B)
             return S
         end
@@ -86,7 +86,8 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
         if e == 0
             return S
         end
-        @time B = pseudorem(A,-B) / (s^delta * leading_coefficient(A))
+        #@time 
+        B = pseudorem(A,-B) / (s^delta * leading_coefficient(A))
         A = copy(C)
         s = leading_coefficient(A)
     end
@@ -137,13 +138,40 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false
     return newsr
 end
 
+function interp_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, iv; list=false) where T <: RingElement
+	R = parent(P)
+    A = coefficient_ring(R)
+    iu = iv%2+1
+    Vu, Vv = [:x, :y]
+	# Modern computer Algebra Th 6.51.
+	degs = degrees(P)
+	n, d = degs[iv], degs[iu]
+	degsmax = [ (2*n-1-2*k)*d for k=0:d-2 ] 
+	Dmax = degsmax[end]>>1+1
+	##
+	xs = [ rand(A) for _=1:(degsmax[1]+1) ]
+	@time begin
+	Srev = [ subresultants(change_ringvar(evaluate(P,[iu],[xx]),[Vv]), change_ringvar(evaluate(Q,[iu],[xx]),[Vv])) for xx in xs ]
+	end
+	S,t = Nemo.polynomial_ring(A,Vu)
+	Sr = [ [ S(0) for _=1:i] for i=1:n-2 ]
+	for i = 1:n-2
+		for j = 1:i
+			ys = [ A(Srev[l][i][j]) for l=eachindex(Srev) ]
+			Sr[i][j] = interpolate(S, xs, ys)
+		end
+	end
+	return Sr
+end
+
 function mmod_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false) where T <: RingElement
     prim = nextprime(2^(30))
     L1, primprod = [], ZZ(1)
     i=1
     while true
-        print("$i, ")
         if !all([ divides(ZZ(prim), evaluate(leading_coefficient(l, 2),[0,0]))[1] for l in [P,Q] ])
+            print("$i: ")
+            @time begin
             L2 = deepcopy(L1)
             Pprim, Qprim = [ change_coefficient_ring(GF(prim), poly) for poly in [P,Q] ]
             sr = subresultants(Pprim, Qprim, idx)[1]
@@ -153,10 +181,23 @@ function mmod_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=
             end
             primprod *= ZZ(prim)
             L1 != L2 || break
+            i+=1
+            end
         end
         prim = nextprime(prim+1)
-        i+=1
     end
     println()
     return L1
+end
+
+function fact_gcd(delta, Lsr, mult)
+    Lphi = [gcd(delta, Lsr[1])]
+    Ldelta = [delta/Lphi[1]]
+    i = 2
+    while i<mult
+        push!(Lphi, gcd(Lphi[i-1], Lsr[i]))
+        push!(Ldelta, Ldelta[i-1]/Lphi[i])
+        i+=1
+    end
+    return filter(s->degree(s[2])>0, Dict(enumerate(Ldelta)))
 end
