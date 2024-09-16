@@ -4,7 +4,7 @@
 #using AlgebraicSolving
 #using Nemo
 
-export computeRM, computepolarproj
+export computeRM, computepolarproj, computepolarphi
 # DEBUG
 export change_ringvar, compute_minors, detmpoly
 
