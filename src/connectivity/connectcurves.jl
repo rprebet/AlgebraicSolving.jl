@@ -4,10 +4,11 @@
 #pythonplot()
 
 export compute_graph, connected_components, number_connected_components, group_by_component, merge_graphs,
- plot_graph, plot_graphs, plot_graph_comp, compute_param
+ plot_graph, plot_graphs, plot_graph_comp, compute_param, Bresultant
 
  # DEBUG
- export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd
+ export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd, isolate_eval, isolate,
+ rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs
 
 include("tools.jl")
 include("subresultants.jl")
@@ -16,8 +17,9 @@ include("boxes.jl")
 include("graph.jl")
 include("plots.jl")
 include("arbtools.jl")
+include("src/resultant/bresultant.jl")
 
-function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf=true)  where (P <: MPolyRingElem)
+function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
     println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     println("!! Careful: this is a WIP version !!")
     println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -39,10 +41,11 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     
 
     println("\nCompute parametrization of critical pts...")
-    @time begin
-    sr = subresultants(f, derivative(f,y), 2, list=true)
+    @time sr = subresultants(change_coefficient_ring(ZZ,f), change_coefficient_ring(ZZ,derivative(f,y)), 2, list=true)
+    sr = [ [ change_coefficient_ring(QQ,p) for p in srp ] for srp in sr ]
     # Take sqfree factors of the resultant
     sqr = collect(factor_squarefree(sr[1][1]))
+    #println(sqr)
     # Keep only deg>0 factors 
     filter!(t->t[2]>0, sqr)
     # Order by multiplicity
@@ -52,37 +55,48 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     for r in sqr
         group_sqr[r[2]][1] *= r[1]
     end
+    #filter!(t->total_degree(t[1])>0, group_sqr)
+    iparam = Dict([1=>2, 2=>2, 3=>2])
     # Construct the parametrization of the critical points
-    params = [ [ q[1], -sr[2][1], sr[2][2] ] for q in group_sqr ];
+    params = [ [ q[1], -sr[iparam[q[2]]][1], (iparam[q[2]]-1)*sr[iparam[q[2]]][2] ] for q in group_sqr ];
+    #println(params)
     append!(params, C)
-    end
 
     if arb
-        # TODO : check that no overlap between different isolations
-        println("\nIsolating critical values with precision ", precx,"..")
-        @time begin
-        xcrit = [ isolate(first(p), prec=precx) for p in params ]
-        for i in eachindex(xcrit)
-            for j in eachindex(xcrit[i])
-                if xcrit[i][j][1]==xcrit[i][j][2]
-                    xcrit[i][j] = [xcrit[i][j][1]-1//ZZ(1)<<precx, xcrit[i][j][1]+1//ZZ(1)<<precx]
+        while true
+            try
+                # TODO : check that no overlap between different isolations
+                println("\nIsolating critical values with precision ", precx,"..")
+                @time begin
+                xcrit = [ isolate(first(p), prec=precx) for p in params ]
+                for i in eachindex(xcrit)
+                    for j in eachindex(xcrit[i])
+                        if xcrit[i][j][1]==xcrit[i][j][2]
+                            xcrit[i][j] = [xcrit[i][j][1]-1//ZZ(1)<<precx, xcrit[i][j][1]+1//ZZ(1)<<precx]
+                        end
+                    end
                 end
-            end
-        end
-        xcritpermut = order_permut2d(xcrit);
-        end
+                xcritpermut = order_permut2d(xcrit);
+                end
 
-        println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
-        @time begin
-        #RR = ArbField(max(precx,150))
-        precArb =precx
-        Pcrit = [ [ [xc, evaluate_Arb(params[i][2], xc[1], precArb)/evaluate_Arb(params[i][3],xc[1],precArb)] for xc in xcrit[i]] for i in eachindex(xcrit) ]
-        LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
+                println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
+                @time begin
+                precArb = precx
+                Pcrit = [ [ [xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in eachindex(xcrit) ]
+                LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
+                end
+            catch
+                precx *= 2
+                println("Refine x-precision to $precx")
+            else
+                break
+            end
         end
     else
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
         @time begin
-        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx, interval=true),by=t->t[1]) for p in params ]
+        # TODO: parameter -I
+        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx, info_level=2,interval=true),by=t->t[1]) for p in params ]
         for i in eachindex(LBcrit)
             for j in eachindex(LBcrit[i])
                 for k in eachindex(LBcrit[i][j])
@@ -96,7 +110,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         xcritpermut = order_permut2d(xcrit);
         end
     end
-
+    
     @time begin
     println("\nTest for identifying singular boxes");ts=time();
     ########################################################
@@ -198,6 +212,8 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         end
     end
     end
+
+    #return LnPCside
 
     println("\nGraph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
@@ -332,7 +348,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         for i in eachindex(Vert)
             vx,vy = Vert[i]
             vx,vy = Float64.(changemat*[vx, vy])
-            Vert = [ (vx, vy) for v in Vert ]
+            Vert[i] = (vx, vy)
         end
     end
 

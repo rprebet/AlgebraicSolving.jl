@@ -9,12 +9,22 @@ function rat_to_Arb(x, prec)
     return ball(xm,xd)
 end
 
-function evaluate_Arb(f, x, prec)
+function evaluate_Arb(f, x::ArbFieldElem)
 	if is_zero(f)
-		return ArbField(prec)(0)
+		return zero(parent(x))
 	else
 		cf = coefficients_of_univariate(f)
-		return evalpoly(ArbField(prec)(x), cf) 
+		return evalpoly(x, cf)
+	end
+end
+
+function evaluate_Arb(f, g, x::ArbFieldElem)
+	@assert !is_zero(g) "Denominator must be non-zero"
+	if is_zero(f)
+		return zero(parent(x))
+	else
+		cf, cg = coefficients_of_univariate.([f, g])
+		return evalpoly(x, cf) / evalpoly(x, cg)
 	end
 end
 
