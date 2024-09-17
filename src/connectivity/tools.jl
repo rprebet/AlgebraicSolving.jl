@@ -33,3 +33,10 @@ function trimat_rand(A, n; up=true, range=-100:100)
         return [ i==j ? one(A) : (i>j ? A(rand(range)) : zero(A)) for i in 1:3, j in 1:3 ]
     end
 end
+
+function int_coeffs(F::Vector{P} where P <: QQMPolyRingElem)
+    CD = [ lcm(map(denominator, collect(coefficients(f)))) for f in F ]
+    return (F .* CD)
+end
+
+int_coeffs(f::QQMPolyRingElem) = int_coeffs([f])[1]
