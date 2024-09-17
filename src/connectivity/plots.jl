@@ -45,7 +45,7 @@ function plot_graphs(CG; width=3, vert=true, subplt=false)
     subplt || gui()
 end
 
-function plot_graph_comp(G, Vemph=[]; width=3, vert=true)
+function plot_graph_comp(G, Vemph=[]; width=3, vert=true, subplt=false)
     println("Plotting the graph")
     plot(legend=false)
     CG = connected_components(G, Vemph)
