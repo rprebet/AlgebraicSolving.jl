@@ -164,29 +164,54 @@ function interp_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, iv; list
 	return Sr
 end
 
-function mmod_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false) where T <: RingElement
-    prim = nextprime(2^(30))
+function mmod_subresultants(P::QQMPolyRingElem, Q::QQMPolyRingElem, idx; list=false)
+    CD = [ lcm(map(denominator, collect(coefficients(f)))) for f in [P,Q] ]
+    PZ, QZ = change_coefficient_ring.(Ref(ZZ), [P,Q] .* CD)
+    #println(PZ,"\n",QZ)
+    sr = mmod_subresultants(PZ, QZ, idx; list=list)
+    return sr
+    if list
+        return [ change_coefficient_ring.(Ref(QQ),srp) for srp in sr ]
+    else
+        return change_coefficient_ring.(Ref(QQ),sr)
+    end
+end
+
+function mmod_subresultants(P::ZZMPolyRingElem, Q::ZZMPolyRingElem, idx; list=false)
+    prim = ZZ(2)<<(60)
     L1, primprod = [], ZZ(1)
+    lcpq =  [ evaluate(leading_coefficient(l, 2),[0,0]) for l in [P,Q] ]
     i=1
+    step=Threads.nthreads()
     while true
-        if !all([ divides(ZZ(prim), evaluate(leading_coefficient(l, 2),[0,0]))[1] for l in [P,Q] ])
-            print("$i: ")
-            @time begin
-            L2 = deepcopy(L1)
-            Pprim, Qprim = [ change_coefficient_ring(GF(prim), poly) for poly in [P,Q] ]
-            sr = subresultants(Pprim, Qprim, idx)[1]
-            L1 = lift.(Ref(ZZ), coefficients_of_univariate(sr))
-            if L2 != []
-                L1 = [ crt(L2[i], primprod, L1[i], ZZ(prim), true) for i in 1:length(L2) ]
-            end
-            primprod *= ZZ(prim)
-            L1 != L2 || break
-            i+=1
+        print("$i primes ")
+        LP, LQ, Lprim = MPolyRingElem[], MPolyRingElem[], ZZRingElem[]
+        while length(Lprim) < step
+            prim = next_prime(prim)
+            if !any(getindex.(divides.(Ref(prim), lcpq),1)) 
+                Pprim, Qprim = [ change_coefficient_ring(residue_ring(ZZ, prim)[1], poly) for poly in [P,Q] ]
+                push!.([LP,LQ,Lprim], [Pprim,Qprim,prim])
             end
         end
-        prim = nextprime(prim+1)
+        Ltemp = Vector{Vector{ZZRingElem}}(undef,step)
+        Threads.@threads for j in 1:step
+            sr = subresultants(LP[j], LQ[j], idx)[1]
+            Ltemp[j] = lift.(Ref(ZZ), coefficients_of_univariate(sr))
+        end
+        if L1 != []
+            push!.([Ltemp, Lprim], [L1, primprod])
+        end
+        nLt = length(first(Ltemp))
+        @assert all(length.(Ltemp) .== nLt) "Specialization problem"
+        L2 = deepcopy(L1)
+        L1 = [ crt(getindex.(Ltemp,i), Lprim, true) for i in 1:nLt ]
+
+        L1 != L2 || break
+        #println(L1)
+        primprod = prod(Lprim)
+        i+=step
+        println(ndigits(primprod, 10), " digits")
     end
-    println()
     return L1
 end
 
@@ -199,5 +224,5 @@ function fact_gcd(delta, Lsr, mult)
         push!(Ldelta, Ldelta[i-1]/Lphi[i])
         i+=1
     end
-    return filter(s->degree(s[2])>0, Dict(enumerate(Ldelta)))
+    return filter(s->degree(s[2])>0, (enumerate(Ldelta)))
 end
