@@ -30,35 +30,18 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     v > 1 && println(f)
 
     v > 0 && println("\nCompute parametrization of critical pts...")
-    @iftime v > 0 sr = subresultants(change_coefficient_ring(ZZ,f), change_coefficient_ring(ZZ,derivative(f,y)), 2, list=true)
-    sr = [ [ change_coefficient_ring(QQ,p) for p in srp ] for srp in sr ]
-    # Take sqfree factors of the resultant
-    sqr = collect(factor_squarefree(sr[1][1]))
-    #println(sqr)
-    # Keep only deg>0 factors 
-    filter!(t->t[2]>0, sqr)
-    # Order by multiplicity
-    sort!(sqr, by=t->t[2])
-    # Group by multiplicity
-    group_sqr = [ [R(1),i] for i in 1:sqr[end][2] ]
-    for r in sqr
-        group_sqr[r[2]][1] *= r[1]
-    end
-    #filter!(t->total_degree(t[1])>0, group_sqr)
-    iparam = Dict([1=>2, 2=>2, 3=>2, 4=>2, 5=>2, 6=>3])
-    # Construct the parametrization of the critical points
-    params = [ [ q[1], -sr[iparam[q[2]]][1], (iparam[q[2]]-1)*sr[iparam[q[2]]][2] ] for q in group_sqr ];
+    @iftime (v > 0) params = param_crit_split(f)
     #println(params)
-    append!(params, C)
-
+    #append!(params, C)
     if arb
-        while true
-            try
+        compt = 1
+        while compt < 5
+            #try
                 # TODO : check that no overlap between different isolations
                 println("\nIsolating critical values with precision ", precx,"..")
                 @time begin
-                xcrit = [ isolate(first(p), prec=precx) for p in params ]
-                for i in eachindex(xcrit)
+                xcrit = Dict(p[1]=> reduce(vcat, [isolate(pp, prec=precx) for pp in p[2][1]]) for p in params)
+                for i in keys(xcrit)
                     for j in eachindex(xcrit[i])
                         if xcrit[i][j][1]==xcrit[i][j][2]
                             xcrit[i][j] = [xcrit[i][j][1]-1//ZZ(1)<<precx, xcrit[i][j][1]+1//ZZ(1)<<precx]
@@ -71,15 +54,16 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
                 @time begin
                 precArb = precx
-                Pcrit = [ [ [xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in eachindex(xcrit) ]
-                LBcrit = [ [ [ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for pcrit in Pcrit ]
+                Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in keys(xcrit))
+                LBcrit =Dict( i=> [[ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for (i, pcrit) in Pcrit)
                 end
-            catch
-                precx *= 2
-                println("Refine x-precision to $precx")
-            else
+            #catch
+            #    precx *= 2
+            #    println("Refine x-precision to $precx")
+            #    compt += 1
+            #else
                 break
-            end
+            #end
         end
     else
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
@@ -104,26 +88,21 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     println("\nTest for identifying singular boxes");ts=time();
     ########################################################
     # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
-    ### DEBUG: for now, only nodes for singular points, hardcode below ###
-    mult_to_factor = Dict(2=>2:length(group_sqr))
     #########################################################
-    mults = keys(mult_to_factor)
-    Lfyk = diff_list(f, 2, maximum(mults))
-    for m in mults
-        for k in mult_to_factor[m]
-            while true
-                flag = false
-                for j in eachindex(LBcrit[k])
-                    pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[k][j] ]
-                    if contains_zero(evaluate(Lfyk[m+1], pcrit))
-                        println("Refine singular boxes of multiplicity ", k)
-                        # TODO refine_boxes(params[k], LBcrit[k])
-                        #flag = true
-                        break
-                    end
+    Lfyk = diff_list(f, 2, maximum(keys(LBcrit)))
+    for m in keys(LBcrit)
+        while true
+            flag = false
+            for j in eachindex(LBcrit[m])
+                pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[m][j] ]
+                if contains_zero(evaluate(Lfyk[m+1], pcrit))
+                    println("Refine singular boxes of multiplicity ", m)
+                    # TODO refine_boxes(params[k], LBcrit[k])
+                    #flag = true
+                    break
                 end
-                flag || break
             end
+            flag || break
         end
     end
     end
@@ -277,7 +256,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         # The critical point
         ##########################
         # If we are dealing with a node
-        if length(group_sqr)>1 && i == 2
+        if i == 2
             # if it is an isolated point
             if isempty(nI[1]) && isempty(nI[2])
                 push!(Lapp[1], (i,j))
@@ -309,10 +288,10 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             for k in nI[2]
                 push!(Edg, (length(Vert), Corr[i][j][3][k]))
             end
-            if i > length(params)-length(C)
-                # If this is a control point
-                push!(Vcon[i + length(C) - length(params)], length(Vert))
-            end
+            #if i > length(params)-length(C)
+            #    # If this is a control point
+            #    push!(Vcon[i + length(C) - length(params)], length(Vert))
+            #end
         end
         ###########################
         # Above the critical point
