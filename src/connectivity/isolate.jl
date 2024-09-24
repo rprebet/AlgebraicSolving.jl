@@ -10,7 +10,7 @@ function isolate(f; prec = 32, software="usolve")
 		return usolve(f, precision = prec, uspath="AlgebraicSolving.jl/src/connectivity/src/usolve/usolve", output="inter")
     else
         #println(f)
-        sols = real_solutions(Ideal([change_ringvar(f)]), precision=prec, interval=true)
+        sols = real_solutions(Ideal([change_ringvar(f)]), precision=prec, interval=true, info_level=0)
         return getindex.(sols, 1)
     end
 end
@@ -20,6 +20,7 @@ function isolate_eval(f, ivar, val; prec=64, software="usolve")
     # univariate isolation of roots of a bivariate polynomial f
     # whose ivar-th variable is evaluated at val
     # uses msolve
+    #println(ivar,"\n", val,"\n", f)
     fev = change_ringvar(evaluate(f, [ivar], [val]))
     CD = lcm(map(denominator, collect(coefficients(fev))))
     fev *= CD
