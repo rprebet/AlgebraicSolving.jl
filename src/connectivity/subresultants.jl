@@ -281,35 +281,37 @@ function param_crit_split(f)
 
     # Filter out factors with zero multiplicity and sort by multiplicity
     sqr = sort!(filter(t -> t[2] > 0, sqr), by = t -> t[2])
-
     # Group factors by multiplicity
     sqrmult = unique(getindex.(sqr, 2))
-    # TODO: no product, manage each subfactor
-    group_sqr = Dict(m => prod([r[1] for r in sqr if r[2] == m]) for m in sqrmult)
-
+    group_sqr = Dict(m => [r[1] for r in sqr if r[2] == m] for m in sqrmult)
+    
     # Initalization
-    singmult = filter(p->p*(p-1)<=sqrmult[end], 1:sqrmult[end])
-    param_crit = Dict(p => Vector{MPolyRingElem}[] for p in singmult)
-    lsr = [ s[end] for s in sr[2:singmult[end]] ]
+    singmult = filter(p->p*(p-1)<=sqrmult[end], 2:sqrmult[end])
+    param_crit = Dict(p => [QQMPolyRingElem[], -sr[p][end-1], (p-1)*sr[p][end]]  for p in singmult)
+    lsr = [ sr[p][end] for p in singmult ]
 
     # Critical points : multiplicity 1 in res
-    (1 in sqrmult) && push!(param_crit[1], [group_sqr[1], -sr[2][end-1], sr[2][end]])
+    (1 in sqrmult) && push!(param_crit, 1=>[group_sqr[1], -sr[2][end-1], sr[2][end]])
     # Nodes : multiplicity 2 in res
-    (2 in sqrmult) && push!(param_crit[2], [group_sqr[2], -sr[2][end-1], sr[2][end]])
+    (2 in sqrmult) && append!(param_crit[2][1], group_sqr[2])
     # Other sing
     filter!(m->!(m in [1,2]), sqrmult)
     #TODO: simpler criterion for mult=p*(p-1)?
-    Ld = Vector{Dict{Int, MPolyRingElem}}(undef, length(sqrmult))
+    Ld = Vector{Vector{Dict{Int, QQMPolyRingElem}}}(undef, length(sqrmult))
     #Threads.@threads 
     for k in eachindex(sqrmult)
-        Ld[k] = fact_gcd(group_sqr[sqrmult[k]], lsr)
+        for l in eachindex(group_sqr[sqrmult[k]])
+            Ld[k][l] = fact_gcd(group_sqr[sqrmult[k]][l], lsr)
+        end
     end
     for k in eachindex(Ld)
-        for (i, dji) in Ld[k]
-            push!(param_crit[i+1], [dji, -sr[i+1][end-1], i*sr[i+1][end]])
+        for l in eachindex(Ld[k])
+            for (i, dji) in Ld[k][l]
+                push!(param_crit[i+1][1], dji)
+            end
         end
     end
 
-    filter!(p->length(p[2])>0, param_crit)
+    filter!(p->length(p[2][1])>0, param_crit)
     return param_crit
 end
