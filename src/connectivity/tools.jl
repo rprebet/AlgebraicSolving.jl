@@ -34,9 +34,19 @@ function trimat_rand(A, n; up=true, range=-100:100)
     end
 end
 
-function int_coeffs(F::Vector{P} where P <: QQMPolyRingElem)
+function int_coeffs(F::Vector{P} where P <: Union{QQMPolyRingElem, QQPolyRingElem})
     CD = [ lcm(map(denominator, collect(coefficients(f)))) for f in F ]
     return (F .* CD)
 end
 
-int_coeffs(f::QQMPolyRingElem) = int_coeffs([f])[1]
+int_coeffs(f::Union{QQMPolyRingElem, QQPolyRingElem}) = int_coeffs([f])[1]
+
+macro iftime(v, ex)
+    quote
+        if $(esc(v))
+            @time $(esc(ex))
+        else
+            $(esc(ex))
+        end
+    end
+end
