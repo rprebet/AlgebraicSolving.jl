@@ -4,7 +4,7 @@
 #pythonplot()
 
 export compute_graph, connected_components, number_connected_components, group_by_component, merge_graphs,
- plot_graph, plot_graphs, plot_graph_comp, compute_param, Bresultant
+ plot_graph, plot_graphs, plot_graph_comp, compute_param, Bresultant, param_crit_split
 
  # DEBUG
  export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd, isolate_eval, isolate,
@@ -20,28 +20,17 @@ include("arbtools.jl")
 include("src/resultant/bresultant.jl")
 
 function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    println("!! Careful: this is a WIP version !!")
-    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-
     R = parent(f)
     x, y = gens(R)
 
-    if int_coeff
-        CD = lcm(map(denominator, collect(coefficients(f))))
-        f *= CD
-    end
-    #println(f)
-    # Generic change of variables
-    changemat = [1 0; 0 1]
-    if  !generic
-        changemat = trimat_rand(QQ, 2, range=-100:100)
-    end
+    # Pre-processing the input
+    f = int_coeff ? int_coeffs(f) : f
+    changemat = generic ? [1 0; 0 1] : trimat_rand(QQ, 2, range=-100:100)
     f = evaluate(f, collect(changemat*[x; y]));
-    
+    v > 1 && println(f)
 
-    println("\nCompute parametrization of critical pts...")
-    @time sr = subresultants(change_coefficient_ring(ZZ,f), change_coefficient_ring(ZZ,derivative(f,y)), 2, list=true)
+    v > 0 && println("\nCompute parametrization of critical pts...")
+    @iftime v > 0 sr = subresultants(change_coefficient_ring(ZZ,f), change_coefficient_ring(ZZ,derivative(f,y)), 2, list=true)
     sr = [ [ change_coefficient_ring(QQ,p) for p in srp ] for srp in sr ]
     # Take sqfree factors of the resultant
     sqr = collect(factor_squarefree(sr[1][1]))
@@ -56,7 +45,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         group_sqr[r[2]][1] *= r[1]
     end
     #filter!(t->total_degree(t[1])>0, group_sqr)
-    iparam = Dict([1=>2, 2=>2, 3=>2])
+    iparam = Dict([1=>2, 2=>2, 3=>2, 4=>2, 5=>2, 6=>3])
     # Construct the parametrization of the critical points
     params = [ [ q[1], -sr[iparam[q[2]]][1], (iparam[q[2]]-1)*sr[iparam[q[2]]][2] ] for q in group_sqr ];
     #println(params)
@@ -96,7 +85,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
         @time begin
         # TODO: parameter -I
-        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx, info_level=2,interval=true),by=t->t[1]) for p in params ]
+        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx,interval=true),by=t->t[1]) for p in params ]
         for i in eachindex(LBcrit)
             for j in eachindex(LBcrit[i])
                 for k in eachindex(LBcrit[i][j])
