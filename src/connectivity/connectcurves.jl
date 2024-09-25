@@ -36,7 +36,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     if arb
         compt = 1
         while compt < 5
-            #try
+            try
                 # TODO : check that no overlap between different isolations
                 println("\nIsolating critical values with precision ", precx,"..")
                 @time begin
@@ -57,13 +57,16 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in keys(xcrit))
                 LBcrit =Dict( i=> [[ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for (i, pcrit) in Pcrit)
                 end
-            #catch
-            #    precx *= 2
-            #    println("Refine x-precision to $precx")
-            #    compt += 1
-            #else
+            catch
+                precx *= 2
+                println("Refine x-precision to $precx")
+                compt += 1
+            else
                 break
-            #end
+            end
+        end
+        if compt == 5
+            error("Problem in isolating critical boxes")
         end
     else
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
