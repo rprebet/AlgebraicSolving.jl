@@ -7,7 +7,7 @@ function isolate(f; prec = 32, software="msolve")
     end
     @assert is_univariate(f) "Not univariate polynomial"
 	if software == "usolve"
-		return usolve(f, precision = prec, uspath="AlgebraicSolving.jl/src/connectivity/src/usolve/usolve", output="inter")
+		return usolve(f, precision = prec, uspath="AlgebraicSolving.jl/src/connectivity/src/usolve/usolve", output="inter", v=2)
     else
         #println(f)
         sols = real_solutions(Ideal([change_ringvar(f)]), precision=prec, interval=true, info_level=0)
@@ -15,7 +15,7 @@ function isolate(f; prec = 32, software="msolve")
     end
 end
 
-function isolate_eval(f, ivar, val; prec=64, software="msolve")
+function isolate_eval(f, ivar, val; prec=64, software="usolve")
     #print(val)
     # univariate isolation of roots of a bivariate polynomial f
     # whose ivar-th variable is evaluated at val
@@ -27,5 +27,4 @@ function isolate_eval(f, ivar, val; prec=64, software="msolve")
 
     return isolate(fev, prec=prec, software=software)
 
-    
 end
