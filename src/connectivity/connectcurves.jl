@@ -41,7 +41,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 println("\nIsolating critical values with precision ", precx,"..")
                 @time begin
                 xcrit = Dict(p[1]=> reduce(vcat, [isolate(pp, prec=precx) for pp in p[2][1]]) for p in params)
-                for i in keys(xcrit)
+                for i in eachindex(xcrit)
                     for j in eachindex(xcrit[i])
                         if xcrit[i][j][1]==xcrit[i][j][2]
                             xcrit[i][j] = [xcrit[i][j][1]-1//ZZ(1)<<precx, xcrit[i][j][1]+1//ZZ(1)<<precx]
@@ -54,8 +54,15 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
                 @time begin
                 precArb = precx
-                Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in keys(xcrit))
+                Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in eachindex(xcrit))
                 LBcrit =Dict( i=> [[ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for (i, pcrit) in Pcrit)
+                for i in eachindex(LBcrit)
+                    for j in eachindex(LBcrit[i])
+                        if LBcrit[i][j][2][1]==LBcrit[i][j][2][2]
+                            LBcrit[i][j][2] = [LBcrit[i][j][2][1]-1//ZZ(1)<<precx, LBcrit[i][j][2][1]+1//ZZ(1)<<precx]
+                        end
+                    end
+                end
                 end
             catch
                 precx *= 2
@@ -72,7 +79,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         println("\nCompute critical boxes with msolve with precision ", precx,"..")
         @time begin
         # TODO: parameter -I
-        LBcrit = [ sort(real_solutions(AlgebraicSolving.Ideal([p[1],  p[3]*y-p[2]]), precision=precx,interval=true),by=t->t[1]) for p in params ]
+        LBcrit = Dict(p[1]=>reduce(vcat,[ sort(real_solutions(AlgebraicSolving.Ideal([pp,  p[2][3]*y-p[2][2]]), precision=precx,interval=true),by=t->t[1])  for pp in p[2][1] ]) for p in params)
         for i in eachindex(LBcrit)
             for j in eachindex(LBcrit[i])
                 for k in eachindex(LBcrit[i][j])
@@ -82,22 +89,24 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 end
             end
         end
-        xcrit = [ [ B[1] for B in lbcrit ] for lbcrit in LBcrit ]
+        xcrit = Dict(lbcrit[1]=>[ B[1] for B in lbcrit[2] ] for lbcrit in LBcrit)
         xcritpermut = order_permut2d(xcrit);
         end
     end
-    
+
     @time begin
     println("\nTest for identifying singular boxes");ts=time();
     ########################################################
     # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
     #########################################################
-    Lfyk = diff_list(f, 2, maximum(keys(LBcrit)))
-    for m in keys(LBcrit)
+    Lfyk = diff_list(f, 2, max(maximum(eachindex(LBcrit)),2))
+    for ind in eachindex(LBcrit)
+        ind!=1 || continue # extreme pts
+        m = ind==-1 ? 2 : ind # nodes have mult 2
         while true
             flag = false
-            for j in eachindex(LBcrit[m])
-                pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[m][j] ]
+            for j in eachindex(LBcrit[ind])
+                pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[ind][j] ]
                 if contains_zero(evaluate(Lfyk[m+1], pcrit))
                     println("Refine singular boxes of multiplicity ", m)
                     # TODO refine_boxes(params[k], LBcrit[k])
@@ -117,20 +126,21 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     # and change into npcside = [0,0,2,2]
     ## TODO : Refine only the intervals that need to be refined
     println("\nCompute intersections with critical boxes..")
-    LPCside = Array{Any}(undef,length(LBcrit))
-    ndig = maximum([Int(floor(log10(max(1,length(LB))))) for LB in LBcrit])
+    LPCside = Dict{Int,Any}()
+    ndig = maximum([ndigits(length(LBcrit[i])) for i in eachindex(LBcrit)])
     for i in eachindex(LBcrit)
-        ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
-        Ptype = i > length(LBcrit) - length(C) ? "Pcon" : "mult"
         LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
-        precxtmp = precx 
+        ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
+        Ptype = (i > length(LBcrit)-length(C)) ? "Pcon" : "mult"
+        precxtmp = precx
         while true
             flag = false
             for j in eachindex(LBcrit[i])
                 print("$Ptype=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
                 pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
                 npcside = [length(n) for (I, n) in pcside]
-                if (i == 1 && sum(npcside) > 2) || (i > 1 && sum(npcside[1:2]) != 0)
+                #println("($i, $j): $npcside")
+                if (i == 1 && sum(npcside) > 2) || (i != 1 && sum(npcside[1:2]) != 0)
                     precxtmp *= 2
                     println("\nRefine boxes along x-axis to precision ", precxtmp)
                     refine_xboxes(params[i][1], LBcrit[i], precxtmp)
@@ -143,42 +153,44 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         end
         println("")
     end
-    LnPCside = [ [[length(indI) for (L, indI) in PB] for PB in lpcside] for lpcside in LPCside ] 
+    LnPCside = Dict(i => [[length(indI) for (L, indI) in PB] for PB in LPCside[i]] for i in eachindex(LPCside))
 
     # Update extreme boxes
-    for j in eachindex(LBcrit[1])
-        # If the curve does not intersect the box only on vertical sides
-        if !(LnPCside[1][j][1:2] == [0, 0])
-            PCside, nPCside = LPCside[1][j], LnPCside[1][j]
-            I = [ l[1] for l in PCside[3:end] ]
-            nI = [ l[2] for l in PCside[3:end] ]
-            # Locate the orientation of the extreme point
-            # s is the index on the side where there are more branches
-            # s=1: left; s=2: right
-            s = argmax([length(I[1]), length(I[2])])
-            # Ordinate range of the extreme point
-            ycrit = LBcrit[1][j][2]
-            # If it intersects on the bottom side
-            if nPCside[1] == 1
-                # yinf: the intersection with the vertical side just below the extreme point
-                yinf = maximum([i for (i, yy) in pairs(I[s]) if yy[1] < ycrit[1]])
-                # We vertically enlarge the box until it intersects on the horizontal side
-                push!(LPCside[1][j][s + 2][2], yinf)
-                LPCside[1][j][1][2] = []
-                # We update the intersection numbers
-                LnPCside[1][j][s + 2] += 1
-                LnPCside[1][j][1] = 0
-            end
-            # If it intersects on the top side
-            if nPCside[2] == 1 
-                # ymax: the intersection with the vertical side just above the extreme point
-                ymax = minimum([i for (i, yy) in pairs(I[s]) if yy[2] > ycrit[2]])
-                # We vertically enlarge the box until it intersects on the horizontal side
-                push!(LPCside[1][j][s + 2][2], ymax)
-                LPCside[1][j][2][2] = []
-                # We update the intersection numbers
-                LnPCside[1][j][s + 2] += 1
-                LnPCside[1][j][2] = 0
+    if haskey(LBcrit, 1)
+        for j in eachindex(LBcrit[1])
+            # If the curve does not intersect the box only on vertical sides
+            if !(LnPCside[1][j][1:2] == [0, 0])
+                PCside, nPCside = LPCside[1][j], LnPCside[1][j]
+                I = [ l[1] for l in PCside[3:end] ]
+                nI = [ l[2] for l in PCside[3:end] ]
+                # Locate the orientation of the extreme point
+                # s is the index on the side where there are more branches
+                # s=1: left; s=2: right
+                s = argmax([length(I[1]), length(I[2])])
+                # Ordinate range of the extreme point
+                ycrit = LBcrit[1][j][2]
+                # If it intersects on the bottom side
+                if nPCside[1] == 1
+                    # yinf: the intersection with the vertical side just below the extreme point
+                    yinf = maximum([i for (i, yy) in pairs(I[s]) if yy[1] < ycrit[1]])
+                    # We vertically enlarge the box until it intersects on the horizontal side
+                    push!(LPCside[1][j][s + 2][2], yinf)
+                    LPCside[1][j][1][2] = []
+                    # We update the intersection numbers
+                    LnPCside[1][j][s + 2] += 1
+                    LnPCside[1][j][1] = 0
+                end
+                # If it intersects on the top side
+                if nPCside[2] == 1
+                    # ymax: the intersection with the vertical side just above the extreme point
+                    ymax = minimum([i for (i, yy) in pairs(I[s]) if yy[2] > ycrit[2]])
+                    # We vertically enlarge the box until it intersects on the horizontal side
+                    push!(LPCside[1][j][s + 2][2], ymax)
+                    LPCside[1][j][2][2] = []
+                    # We update the intersection numbers
+                    LnPCside[1][j][s + 2] += 1
+                    LnPCside[1][j][2] = 0
+                end
             end
         end
     end
@@ -193,13 +205,13 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
 
     Vert = Vector{Tuple{typeout, typeout}}()
     Edg = Vector{Tuple{Int, Int}}()
-    Corr = [[[[], [[], [], []], []] for j in xcrit[i] ] for i in eachindex(xcrit) ]
+    Corr = Dict( m => [[[], [[], [], []], []] for j in xcrit[m] ] for m in eachindex(xcrit))
     Viso = []
     Vcon = [ [] for _ in 1:length(C) ]
 
     Lapp = [[],[]]
 
-    for ind in 1:length(xcritpermut)
+    for ind in eachindex(xcritpermut)
         i, j = xcritpermut[ind]
 
         if ind > 1
@@ -259,7 +271,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         # The critical point
         ##########################
         # If we are dealing with a node
-        if i == 2
+        if i == -1
             # if it is an isolated point
             if isempty(nI[1]) && isempty(nI[2])
                 push!(Lapp[1], (i,j))
@@ -318,7 +330,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     if !(generic)
         for i in eachindex(Vert)
             vx,vy = Vert[i]
-            vx,vy = Float64.(changemat*[vx, vy])
+            vx,vy = fct.(changemat*[vx, vy])
             Vert[i] = (vx, vy)
         end
     end
@@ -348,7 +360,7 @@ function group_by_component(f::P, C::Vector{P}; generic=true, precx=150, v=0, ar
     # Compute the partition of the vertices in Vcon according to the connected component in G
     sort!(Vcon)
     CVcon = group_by_component(G, Vcon)
-    
+
     # Convert the partition into abscissa order 
     index_map = Dict((val, idx) for (idx, val) in enumerate(Vcon))
     return [map(v -> index_map[v], C) for C in CVcon]
