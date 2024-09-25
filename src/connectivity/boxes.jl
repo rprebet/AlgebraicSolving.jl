@@ -50,9 +50,18 @@ function intersect_box(f, B; prec=100)
     return L
 end
 
-function refine_xboxes(f, LB, prec)
+function refine_xboxes(f::T where T<:Union{PolyRingElem, MPolyRingElem}, LB, prec)
     # Refine LB along first axis, being roots of f
     xnew = isolate(f, prec=prec)
+    for i in eachindex(LB)
+		  LB[i] = [ xnew[i], LB[i][2] ]
+    end
+end
+
+function refine_xboxes(F::Vector{T} where T<:Union{PolyRingElem, MPolyRingElem}, LB, prec)
+    # Refine LB along first axis, being roots of the polynomial in F
+    # The order in F is assumed to match the one in LB
+    xnew = reduce(vcat, [isolate(f, prec=prec) for f in F])
     for i in eachindex(LB)
 		  LB[i] = [ xnew[i], LB[i][2] ]
     end
