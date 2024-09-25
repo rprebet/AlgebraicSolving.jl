@@ -75,8 +75,8 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
 
             index_permut = Dict((v, i) for (i, v) in enumerate(newvarias_S))
             permut_varias = [ index_permut[v] for v in Rold.S ]
-            # TODO: permut exponents and use polynomial constructor 
-            F = [ evaluate(f, [ varias[permut_varias[i]] for i in 1:Nold ]) for f in F ] 
+            # TODO: permut exponents and use polynomial constructor
+            F = [ evaluate(f, [ varias[permut_varias[i]] for i in 1:Nold ]) for f in F ]
 
             if nb_lf > 0
                 lf_cfs = [ rand(ZZ(-100):ZZ(100), N) for _ in 1:nb_lf]
@@ -96,7 +96,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
         R, varias = polynomial_ring(base_ring(Rold), newvarias_S)
         N = length(varias)
 
-        F = [ evaluate(f, [ varias[i] for i in 1:Nold ]) for f in F ] 
+        F = [ evaluate(f, [ varias[i] for i in 1:Nold ]) for f in F ]
         lf_cfs = vcat(lfs, [ rand(ZZ(-100):ZZ(100), N) for _ in 1:2-length(lfs)])
         append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
     end
@@ -134,7 +134,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
     end
     end
 
-    # Interpolate each coefficient of each poly in the param 
+    # Interpolate each coefficient of each poly in the param
     println("Interpolation step...")
     @time begin
     POLY_PARAM = Vector{QQMPolyRingElem}(undef,N)
@@ -151,8 +151,8 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
 
         C = [ collect(coefficients(c)) for c in COEFFS ]
         POL_term = [C[i][j]*x^(i-1)*y^(j-1) for i in 1:length(C) for j in 1:length(C[i])]
-        POL = length(POL_term) > 0 ? sum(POL_term) : T(0) 
-        
+        POL = length(POL_term) > 0 ? sum(POL_term) : T(0)
+
         POLY_PARAM[count] = POL
     end
     end
@@ -173,7 +173,7 @@ end
 #=
 # Tests
 R, (a,b,c) = polynomial_ring(QQ, [:a,:b,:c])
-F = [-62*a^2-24*a*b+83*a*c-46*b^2-45*b*c+16*c^2+13*a-65*b-84*c-19, 
+F = [-62*a^2-24*a*b+83*a*c-46*b^2-45*b*c+16*c^2+13*a-65*b-84*c-19,
 92*a^2-a*b+39*a*c-16*b^2+61*b*c+78*c^2+17*a+49*b-97*c-56
 ]
 
