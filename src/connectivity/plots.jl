@@ -40,7 +40,7 @@ function plot_graphs(CG; width=3, vert=true, subplt=false)
     col = distinguishable_colors(length(CG)+2)
     for j in eachindex(CG)
         G, CVemph = length(CG[j][1])==2 ? CG[j] : (CG[j], Vector{Int}())
-        plot_graph(G, CVemph, color=col[j+2], subplt=true)
+        plot_graph(G, CVemph, color=col[j+2], vert=vert, subplt=true)
     end
     subplt || gui()
 end
@@ -50,5 +50,5 @@ function plot_graph_comp(G, Vemph=[]; width=3, vert=true, subplt=false)
     plot(legend=false)
     CG = connected_components(G, Vemph)
     plot_graphs(CG, width=width, vert=vert, subplt=true)
-    subplt || gui()
+    subplt || gui()#savefig("/tmp/test.html")
 end
