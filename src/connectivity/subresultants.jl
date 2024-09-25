@@ -15,14 +15,14 @@ function add_ind(L,i,x)
 end
 
 function parray_asvar(LP, idx)
-    # takes the above representation of a poly P  
+    # takes the above representation of a poly P
     # and outputs a representation of P seen as a univariate poly in the i-th variable
     deg = sort(LP[2], by= x->x[idx])[end][idx]
     NLP = [ [[],[]] for _ in 1:deg+1 ]
     for i in eachindex(LP[2])
         di = LP[2][i][idx]+1
         push!(NLP[di][1], LP[1][i])
-        push!(NLP[di][2], rem_ind(LP[2][i], idx)) 
+        push!(NLP[di][2], rem_ind(LP[2][i], idx))
     end
     return NLP
 end
@@ -86,7 +86,7 @@ function subresultants(P::PolyRingElem{T}, Q::PolyRingElem{T}) where T <: RingEl
         if e == 0
             return S
         end
-        #@time 
+        #@time
         B = pseudorem(A,-B) / (s^delta * leading_coefficient(A))
         A = copy(C)
         s = leading_coefficient(A)
@@ -109,13 +109,17 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false
     Lsr = [ [collect(coefficients(csr)) for csr in coefficients(sr)] for sr in sr]
     newsr = []
     if list
-        for lsr in Lsr
+        for (k,lsr) in enumerate(Lsr)
             mlsr = []
-            for i in 1:length(lsr)
+            for i in 1:k#length(lsr)
                 tmp = [[],[]]
-                for j in 1:length(lsr[i])
-                    push!(tmp[1], lsr[i][j])
-                    push!(tmp[2],add_ind([j-1],idx, 0))
+                if i in eachindex(lsr)
+                    for j in 1:length(lsr[i])
+                        push!(tmp[1], lsr[i][j])
+                        push!(tmp[2],add_ind([j-1],idx, 0))
+                    end
+                else
+                    tmp = [[P|>parent|>base_ring|>zero], [[0,0]]]
                 end
                 push!(mlsr, tmp)
             end
@@ -125,7 +129,7 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false
     else
         for lsr in Lsr
             mlsr = [[],[]]
-            for i in 1:length(lsr)
+            for i in 1:i#length(lsr)
                 for j in 1:length(lsr[i])
                     push!(mlsr[1], lsr[i][j])
                     push!(mlsr[2],add_ind([j-1],idx, i-1))
@@ -146,7 +150,7 @@ function interp_subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, iv; list
 	# Modern computer Algebra Th 6.51.
 	degs = degrees(P)
 	n, d = degs[iv], degs[iu]
-	degsmax = [ (2*n-1-2*k)*d for k=0:d-1 ] 
+	degsmax = [ (2*n-1-2*k)*d for k=0:d-1 ]
 	#Dmax = degsmax[end]>>1+1
 	##
     B,t =polynomial_ring(A, Vv)
@@ -192,7 +196,7 @@ function mmod_subresultants(P::ZZMPolyRingElem, Q::ZZMPolyRingElem, idx; list=fa
         LP, LQ, Lprim = MPolyRingElem[], MPolyRingElem[], ZZRingElem[]
         while length(Lprim) < n_threads
             prim = next_prime(prim)
-            if !any(getindex.(divides.(lcpq, Ref(prim)),1)) 
+            if !any(getindex.(divides.(lcpq, Ref(prim)),1))
                 Pprim, Qprim = [ change_coefficient_ring(residue_ring(ZZ, prim)[1], poly) for poly in [P,Q] ]
                 #Pprim, Qprim = [ change_coefficient_ring(GF(prim), poly) for poly in [P,Q] ]
                 push!.([LP,LQ,Lprim], [Pprim,Qprim,prim])
@@ -214,13 +218,13 @@ function mmod_subresultants(P::ZZMPolyRingElem, Q::ZZMPolyRingElem, idx; list=fa
                 end
             end
         end
-        
+
         if L1 != []
             Ltemp[n_threads+1] = copy(L1)
             push!(Lprim, primprod)
         end
-        #@assert allequal(length.(Ltemp[1:nthreads])) "Specialization problem"  
-        Nssr = n_ssr<0 ? length(last(first(Ltemp))) : n_ssr 
+        #@assert allequal(length.(Ltemp[1:nthreads])) "Specialization problem"
+        Nssr = n_ssr<0 ? length(last(first(Ltemp))) : n_ssr
         #println(Ltemp)
         L2 = deepcopy(L1)
         L1 = Vector{Vector{Vector{ZZRingElem}}}(undef, length(first(Ltemp)))
@@ -255,6 +259,7 @@ function fact_gcd(delta::T, LP::Vector{T}) where (T <:PolyRingElem)
     Ldelta = [delta/Lphi[1]]
     i = 2
     while degree(Lphi[end])>0
+        #println.([Lphi,Ldelta,""])
         push!(Lphi, gcd(Lphi[i-1], LP[i]))
         push!(Ldelta, Lphi[i-1]/Lphi[i])
         i+=1
@@ -273,10 +278,15 @@ end
 function param_crit_split(f)
     # Compute subresultants and factor the first subresultant
     if total_degree(f) > 30
-        @time sr = mmod_subresultants(f, derivative(f, 2), 2, list=true, n_ssr=2)
+        sr = mmod_subresultants(f, derivative(f, 2), 2, list=true, n_ssr=2)
     else
-        @time sr = subresultants(f, derivative(f, 2), 2, list=true)
+        sr = subresultants(f, derivative(f, 2), 2, list=true)
     end
+
+    if total_degree(sr[1][1]) == 0
+        return Dict()
+    end
+
     sqr = collect(factor_squarefree(sr[1][1]))
 
     # Filter out factors with zero multiplicity and sort by multiplicity
@@ -284,22 +294,29 @@ function param_crit_split(f)
     # Group factors by multiplicity
     sqrmult = unique(getindex.(sqr, 2))
     group_sqr = Dict(m => [r[1] for r in sqr if r[2] == m] for m in sqrmult)
-    
+    #println(group_sqr)
+
     # Initalization
     singmult = filter(p->p*(p-1)<=sqrmult[end], 2:sqrmult[end])
     param_crit = Dict(p => [QQMPolyRingElem[], -sr[p][end-1], (p-1)*sr[p][end]]  for p in singmult)
-    lsr = [ sr[p][end] for p in singmult ]
 
     # Critical points : multiplicity 1 in res
     (1 in sqrmult) && push!(param_crit, 1=>[group_sqr[1], -sr[2][end-1], sr[2][end]])
+
+    if length(singmult) == 0
+        return filter(p->length(p[2][1])>0, param_crit)
+    end
+
     # Nodes : multiplicity 2 in res
-    (2 in sqrmult) && append!(param_crit[2][1], group_sqr[2])
+    (2 in sqrmult) && push!(param_crit, -1=>[group_sqr[2], -sr[2][end-1], sr[2][end]])
     # Other sing
     filter!(m->!(m in [1,2]), sqrmult)
     #TODO: simpler criterion for mult=p*(p-1)?
+    lsr = [ try sr[p][end] catch; one(parent(f)) end for p in 2:(singmult[end]+1) ]
     Ld = Vector{Vector{Dict{Int, QQMPolyRingElem}}}(undef, length(sqrmult))
-    #Threads.@threads 
+    #Threads.@threads
     for k in eachindex(sqrmult)
+        Ld[k] = Vector{Dict{Int, QQMPolyRingElem}}(undef,length(group_sqr[sqrmult[k]]))
         for l in eachindex(group_sqr[sqrmult[k]])
             Ld[k][l] = fact_gcd(group_sqr[sqrmult[k]][l], lsr)
         end
@@ -312,6 +329,5 @@ function param_crit_split(f)
         end
     end
 
-    filter!(p->length(p[2][1])>0, param_crit)
-    return param_crit
+    return filter(p->length(p[2][1])>0, param_crit)
 end
