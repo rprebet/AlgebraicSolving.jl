@@ -7,7 +7,7 @@ function order_permut2d(L)
     #sorted_L = [pair[1] for pair in sorted_LL]
     sorted_ind = [pair[2] for pair in sorted_LL]
 
-    return sorted_in
+    return sorted_ind
 end
 
 function diff(p, v, n)
