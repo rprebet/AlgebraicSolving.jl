@@ -59,7 +59,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                 for i in eachindex(LBcrit)
                     for j in eachindex(LBcrit[i])
                         if LBcrit[i][j][2][1]==LBcrit[i][j][2][2]
-                            LBcrit[i][j][2] = [LBcrit[i][j][2][1]-1//ZZ(1)<<precx, LBcrit[i][j][2][1]+1//ZZ(1)<<precx]
+                            LBcrit[i][j][2] = [LBcrit[i][j][2][1]-1//ZZ(2)<<precx, LBcrit[i][j][2][1]+1//ZZ(2)<<precx]
                         end
                     end
                 end
@@ -84,7 +84,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             for j in eachindex(LBcrit[i])
                 for k in eachindex(LBcrit[i][j])
                     if LBcrit[i][j][k][1]==LBcrit[i][j][k][2]
-                        LBcrit[i][j][k] = [LBcrit[i][j][k][1]-1//ZZ(1)<<precx, LBcrit[i][j][k][1]+1//ZZ(1)<<precx]
+                        LBcrit[i][j][k] = [LBcrit[i][j][k][1]-1//ZZ(2-k)<<precx, LBcrit[i][j][k][1]+1//ZZ(2-k)<<precx]
                     end
                 end
             end

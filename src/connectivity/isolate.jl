@@ -15,7 +15,7 @@ function isolate(f; prec = 32, software="msolve")
     end
 end
 
-function isolate_eval(f, ivar, val; prec=64, software="usolve")
+function isolate_eval(f, ivar, val; prec=64, software="msolve")
     #print(val)
     # univariate isolation of roots of a bivariate polynomial f
     # whose ivar-th variable is evaluated at val
