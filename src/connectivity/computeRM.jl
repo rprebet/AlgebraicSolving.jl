@@ -19,7 +19,7 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
 	varias, nvarias = gens(A), nvars(A)
   hV = V.gens
   #println(Q)
-  e = length(first(Q)) 
+  e = length(first(Q))
   fixvarias, newvarias = varias[1:e], varias[e+1:nvarias]
 
   R = Vector{AlgebraicSolving.Ideal{QQMPolyRingElem}}(undef,0)
@@ -32,7 +32,7 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
       else
         Fq = V
       end
-      
+
       if dimV - e <= 1
         curve = change_ringvar(Fq.gens, A.S)
         push!(R, AlgebraicSolving.Ideal(vcat(curve, [fixvarias[j] - q[j] for j in 1:e])))

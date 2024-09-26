@@ -6,8 +6,8 @@ function order_permut2d(L)
     # Extract the sorted values and their corresponding indices
     #sorted_L = [pair[1] for pair in sorted_LL]
     sorted_ind = [pair[2] for pair in sorted_LL]
-    
-    return sorted_ind
+
+    return sorted_in
 end
 
 function diff(p, v, n)

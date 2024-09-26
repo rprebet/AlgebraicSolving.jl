@@ -5,7 +5,7 @@ function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: M
     to_varias = Vector{Int}(undef,0)
     for v in newvarias_S
         ind = findfirst(x->x==v, R.S)
-        push!(to_varias, typeof(ind)==Nothing ? length(R.S)+1 : ind) 
+        push!(to_varias, typeof(ind)==Nothing ? length(R.S)+1 : ind)
     end
 
     ind_novarias = setdiff(eachindex(R.S), to_varias)
@@ -22,8 +22,8 @@ function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: M
         end
         push!(res, finish(ctx))
     end
-    
-    return res 
+
+    return res
 end
 
 function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: PolyRingElem}
@@ -45,13 +45,13 @@ function change_ringvar(f::MPolyRingElem, ind_newvarias::Union{Vector{I}, UnitRa
     return first(change_ringvar([f], [R.S[i] for i in ind_newvarias]))
 end
 
-# Return the polynomials in F, but injected in the polynomial ring with the variables occuring in F 
+# Return the polynomials in F, but injected in the polynomial ring with the variables occuring in F
 function change_ringvar(F::Vector{P}) where {P <: MPolyRingElem}
     union_varias = Set{Symbol}()
     for f in F
         union!(union_varias, map(Symbol, vars(f)) )
     end
-    return change_ringvar(F, collect(union_varias)) 
+    return change_ringvar(F, collect(union_varias))
 end
 
 function change_ringvar(f::MPolyRingElem)
@@ -146,20 +146,20 @@ function detmpoly(A::Matrix{QQMPolyRingElem}, R)
     if n != size(A, 2)
         throw(ArgumentError("Matrix must be square"))
     end
-    
+
     if n == 1
         return A[1, 1]
     end
-    
+
     # Initialize the determinant polynomial
     detA = QQMPolyRingElem(R,0)
-    
+
     # Compute the determinant polynomial
     for j = 1:n
         submatrix = A[2:end, [i for i = 1:n if i != j]]
         detA += (-1)^(1+j)*A[1, j] * detmpoly(submatrix, R)
     end
-       
+
     return detA
 end
 
@@ -173,7 +173,7 @@ function contfrac_convergents(x::Rational{Int})
         x = inv(fpart)
         fpart, ipart = modf(x)
         na, da, nb, db = nb, db, na+ipart*nb, da+ipart*db
-        push!(q, nb//db)   
+        push!(q, nb//db)
     end
 end
 
@@ -199,7 +199,7 @@ function small_mid_point(a::QQFieldElem,b::QQFieldElem)
         x = inv(fpart)
         fpart, ipart = modfQQ(x)
         println(fpart," , ", ipart)
-        q1, q2 = q2, QQFieldElem(numerator(q1) + ipart*numerator(q2), denominator(q1) + ipart*denominator(q2)) 
+        q1, q2 = q2, QQFieldElem(numerator(q1) + ipart*numerator(q2), denominator(q1) + ipart*denominator(q2))
     end
 end
 
@@ -222,5 +222,5 @@ function MidRationalPoints(S::Vector{Vector{QQFieldElem}})
         ratioP[i] = simplest_between(ri, li1)
     end
     return ratioP
-end    
+end
 
