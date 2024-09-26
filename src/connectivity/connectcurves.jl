@@ -34,12 +34,12 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     #println(params)
     #append!(params, C)
     if arb
-        compt = 1
+        compt = 0
         while compt < 5
             try
                 # TODO : check that no overlap between different isolations
-                println("\nIsolating critical values with precision ", precx,"..")
-                @time begin
+                v > 0 && println("\nIsolating critical values with precision ", precx,"..")
+            @iftime (v > 0) begin
                 xcrit = Dict(p[1]=> reduce(vcat, [isolate(pp, prec=precx) for pp in p[2][1]]) for p in params)
                 for i in eachindex(xcrit)
                     for j in eachindex(xcrit[i])
@@ -49,10 +49,10 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                     end
                 end
                 xcritpermut = order_permut2d(xcrit);
-                end
+            end
 
-                println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
-                @time begin
+                v > 0 && println("\nComputing isolating critical boxes using Arb with precision ",max(precx,150),"..")
+            @iftime (v > 0) begin
                 precArb = precx
                 Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in eachindex(xcrit))
                 LBcrit =Dict( i=> [[ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for (i, pcrit) in Pcrit)
@@ -63,21 +63,21 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
                         end
                     end
                 end
-                end
+            end
             catch
                 precx *= 2
-                println("Refine x-precision to $precx")
+                v > 0 && println("Refine x-precision to $precx")
                 compt += 1
             else
                 break
             end
         end
-        if compt == 5
+        if compt >= 5
             error("Problem in isolating critical boxes")
         end
     else
-        println("\nCompute critical boxes with msolve with precision ", precx,"..")
-        @time begin
+        v > 0 && println("\nCompute critical boxes with msolve with precision ", precx,"..")
+    @iftime (v > 0) begin
         # TODO: parameter -I
         LBcrit = Dict(p[1]=>reduce(vcat,[ sort(real_solutions(AlgebraicSolving.Ideal([pp,  p[2][3]*y-p[2][2]]), precision=precx,interval=true),by=t->t[1])  for pp in p[2][1] ]) for p in params)
         for i in eachindex(LBcrit)
@@ -91,11 +91,11 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         end
         xcrit = Dict(lbcrit[1]=>[ B[1] for B in lbcrit[2] ] for lbcrit in LBcrit)
         xcritpermut = order_permut2d(xcrit);
-        end
+    end
     end
 
-    @time begin
-    println("\nTest for identifying singular boxes");ts=time();
+    v > 0 && println("\nTest for identifying singular boxes")
+@iftime (v > 0) begin
     ########################################################
     # For each mult of sing pts (keys) give the corresponding factors of the resultant (values)
     #########################################################
@@ -108,7 +108,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             for j in eachindex(LBcrit[ind])
                 pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[ind][j] ]
                 if contains_zero(evaluate(Lfyk[m+1], pcrit))
-                    println("Refine singular boxes of multiplicity ", m)
+                    (v > 0) && println("Refine singular boxes of multiplicity ", m)
                     # TODO refine_boxes(params[k], LBcrit[k])
                     #flag = true
                     break
@@ -117,15 +117,15 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             flag || break
         end
     end
-    end
+end
 
-    @time begin
-    # Could be improved by handling nodes as extreme boxes:
+    v > 0 && println("\nCompute intersections with critical boxes..")
+@iftime (v > 0) begin
+    # Could be improved by handling nodes (or even any ordinary sing) as extreme boxes:
     # when npcside = [2,2,0,0] just take nearest below and above
     # intersections b with the curves on the vertical sides
     # and change into npcside = [0,0,2,2]
     ## TODO : Refine only the intervals that need to be refined
-    println("\nCompute intersections with critical boxes..")
     LPCside = Dict{Int,Any}()
     ndig = maximum([ndigits(length(LBcrit[i])) for i in eachindex(LBcrit)])
     for i in eachindex(LBcrit)
@@ -133,25 +133,30 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
         Ptype = (i > length(LBcrit)-length(C)) ? "Pcon" : "mult"
         precxtmp = precx
-        while true
+        compt = 0
+        while compt < 5
             flag = false
             for j in eachindex(LBcrit[i])
-                print("$Ptype=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
-                pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp)
+                v > 0 && print("$Ptype=$i ; $(j)/$(length(LBcrit[i]))$(repeat(" ", ndig-ndigi+1))pts","\r")
+                pcside = intersect_box(f, LBcrit[i][j], prec=precxtmp,v=v)
                 npcside = [length(n) for (I, n) in pcside]
                 #println("($i, $j): $npcside")
                 if (i == 1 && sum(npcside) > 2) || (i != 1 && sum(npcside[1:2]) != 0)
                     precxtmp *= 2
-                    println("\nRefine boxes along x-axis to precision ", precxtmp)
+                    v > 0 && println("\nRefine boxes along x-axis to precision ", precxtmp)
                     refine_xboxes(params[i][1], LBcrit[i], precxtmp)
                     flag = true
+                    compt += 1
                     break
                 end
                 LPCside[i][j] = pcside
             end
             flag || break
         end
-        println("")
+        v > 0 && println("")
+        if compt >= 5
+            error("Problem in computing intersections with boxes")
+        end
     end
     LnPCside = Dict(i => [[length(indI) for (L, indI) in PB] for PB in LPCside[i]] for i in eachindex(LPCside))
 
@@ -194,11 +199,11 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
             end
         end
     end
-    end
+end
 
     #return LnPCside
 
-    println("\nGraph computation")
+    #println("\nGraph computation")
     # Would be nice to have only one intermediate fiber (take the average of abscissa and ordinates) for plot
     # And even remove this fiber for the graph
     fct, typeout = outf ? (Float64, Float64) : (identity, QQFieldElem)
@@ -318,7 +323,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
         end
     end
 
-    if Lapp != [[],[]]
+    if v > 0 && Lapp != [[],[]]
         println("Removed apparent singularities: $(length(Lapp[1])) isolated  $(length(Lapp[2])) nodes")
     end
     #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
@@ -361,7 +366,31 @@ function group_by_component(f::P, C::Vector{P}; generic=true, precx=150, v=0, ar
     sort!(Vcon)
     CVcon = group_by_component(G, Vcon)
 
-    # Convert the partition into abscissa order 
+    # Convert the partition into abscissa order
     index_map = Dict((val, idx) for (idx, val) in enumerate(Vcon))
     return [map(v -> index_map[v], C) for C in CVcon]
+end
+
+function plot_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+end
+
+function plot_graph(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+end
+
+function plot_graph_comp(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph_comp(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+end
+
+function plot_graph_comp(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph_comp(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+end
+
+function number_connected_components(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    number_connected_components(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+end
+
+function number_connected_components(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    number_connected_components(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end

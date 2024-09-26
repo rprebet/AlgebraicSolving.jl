@@ -7,12 +7,13 @@ function overlap_inter(I,J)
 end
 
 # To try/do : isolate with usolve, call msolve with only one variable
-function intersect_box(f, B; prec=100)
+function intersect_box(f, B; prec=100, v=0)
     L = Array{Any}(undef, 4)
     for i in 1:2
         # Lxi
         L[i] = Array{Any}(undef,2)
-        while true
+        compt = 0
+        while compt < 5
             flag = false
             L[i][1] = isolate_eval(f, 2, B[2][i], prec=prec)
             L[i][2] = []
@@ -21,16 +22,21 @@ function intersect_box(f, B; prec=100)
                     push!(L[i][2], j)
                 elseif overlap_inter(l, B[1])
                     prec *= 2
-                    println("Increase precision to ", prec)
+                    v > 0 && println("Increase precision to ", prec)
                     flag = true
+                    compt += 1
                     break
                 end
             end
             flag || break
         end
+        if compt >= 5
+            error("Problem when isolating on one side of a box")
+        end
         # Lyi
         L[i+2] = Array{Any}(undef,2)
-        while true
+        compt = 0
+        while compt < 5
             flag = false
             L[i+2][1] = isolate_eval(f, 1, B[1][i], prec=prec)
             L[i+2][2] = []
@@ -39,12 +45,16 @@ function intersect_box(f, B; prec=100)
                     push!(L[i+2][2], j)
                 elseif overlap_inter(l, B[2])
                     prec *= 2
-                    println("Increase precision to ", prec)
+                    v > 0 && println("Increase precision to ", prec)
                     flag = true
+                    compt += 1
                     break
                 end
             end
             flag || break
+        end
+        if compt >= 5
+            error("Problem when isolating on one side of a box")
         end
     end
     return L
