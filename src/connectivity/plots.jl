@@ -1,8 +1,7 @@
 
 ## Plot functions
 function plot_graph(G, Vemph::Vector{Vector{T}} where T<:Any; color="red", width=3, vert=true, subplt=false)
-    if !subplt 
-        println("Plotting the graph")
+    if !subplt
         plot(legend=false)
     end
     V, E = G
@@ -34,7 +33,6 @@ end
 
 function plot_graphs(CG; width=3, vert=true, subplt=false)
     if !subplt
-        println("Plotting the graph")
         plot(legend=false)
     end
     col = distinguishable_colors(length(CG)+2)
@@ -46,7 +44,6 @@ function plot_graphs(CG; width=3, vert=true, subplt=false)
 end
 
 function plot_graph_comp(G, Vemph=[]; width=3, vert=true, subplt=false)
-    println("Plotting the graph")
     plot(legend=false)
     CG = connected_components(G, Vemph)
     plot_graphs(CG, width=width, vert=vert, subplt=true)
