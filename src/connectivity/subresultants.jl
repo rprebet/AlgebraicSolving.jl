@@ -129,7 +129,7 @@ function subresultants(P::MPolyRingElem{T}, Q::MPolyRingElem{T}, idx; list=false
     else
         for lsr in Lsr
             mlsr = [[],[]]
-            for i in 1:i#length(lsr)
+            for i in 1:length(lsr)
                 for j in 1:length(lsr[i])
                     push!(mlsr[1], lsr[i][j])
                     push!(mlsr[2],add_ind([j-1],idx, i-1))
@@ -275,7 +275,7 @@ function fact_gcd(delta::T, LP::Vector{T}) where (T <:MPolyRingElem)
     return Dict([ (i, change_ringvar(f, [first(R.S)]) ) for (i,f) in out ])
 end
 
-function param_crit_split(f)
+function param_crit_split(f,g)
     # Compute subresultants and factor the first subresultant
     if total_degree(f) > 30
         sr = mmod_subresultants(f, derivative(f, 2), 2, list=true, n_ssr=2)
@@ -308,7 +308,13 @@ function param_crit_split(f)
     end
 
     # Nodes : multiplicity 2 in res
-    (2 in sqrmult) && push!(param_crit, -1=>[group_sqr[2], -sr[2][end-1], sr[2][end]])
+    if 2 in sqrmult
+        A = derivative(derivative(f,2),2)*derivative(g,1) - derivative(derivative(f,1),2)*derivative(g,2)
+        A1 = numerator(evaluate(A, [2], [-sr[2][end-1]//sr[2][end]]))
+        dA = gcd.(group_sqr[2], Ref(A1))
+        push!(param_crit, -1=>[group_sqr[2]./dA, -sr[2][end-1], sr[2][end]])
+        append!(param_crit[2][1], dA)
+    end
     # Other sing
     filter!(m->!(m in [1,2]), sqrmult)
     #TODO: simpler criterion for mult=p*(p-1)?
@@ -324,10 +330,17 @@ function param_crit_split(f)
     for k in eachindex(Ld)
         for l in eachindex(Ld[k])
             for (i, dji) in Ld[k][l]
-                push!(param_crit[i+1][1], dji)
+                if haskey(param_crit, i+1)
+                    push!(param_crit[i+1][1], dji)
+                else
+                    error("Curve not in generic position")
+                end
             end
         end
     end
 
+    for i in eachindex(param_crit)
+        filter!(p->total_degree(p)>0, param_crit[i][1])
+    end
     return filter(p->length(p[2][1])>0, param_crit)
 end

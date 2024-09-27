@@ -8,7 +8,7 @@ export compute_graph, connected_components, number_connected_components, group_b
 
  # DEBUG
  export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd, isolate_eval, isolate,
- rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs
+ rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs, array_to_poly, parray_asvar, poly_to_array
 
 include("tools.jl")
 include("subresultants.jl")
@@ -19,7 +19,7 @@ include("plots.jl")
 include("arbtools.jl")
 include("src/resultant/bresultant.jl")
 
-function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
     R = parent(f)
     x, y = gens(R)
 
@@ -30,7 +30,7 @@ function compute_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=t
     v > 1 && println(f)
 
     v > 0 && println("\nCompute parametrization of critical pts...")
-    @iftime (v > 0) params = param_crit_split(f)
+    @iftime (v > 0) params = param_crit_split(f,g)
     #println(params)
     #append!(params, C)
     if arb
@@ -371,26 +371,26 @@ function group_by_component(f::P, C::Vector{P}; generic=true, precx=150, v=0, ar
     return [map(v -> index_map[v], C) for C in CVcon]
 end
 
-function plot_graph(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    plot_graph(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function plot_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
 
-function plot_graph(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    plot_graph(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function plot_graph(f::P, g::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
 
-function plot_graph_comp(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    plot_graph_comp(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function plot_graph_comp(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph_comp(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
 
-function plot_graph_comp(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    plot_graph_comp(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function plot_graph_comp(f::P, g::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    plot_graph_comp(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
 
-function number_connected_components(f::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    number_connected_components(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function number_connected_components(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    number_connected_components(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
 
-function number_connected_components(f::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
-    number_connected_components(compute_graph(f, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
+function number_connected_components(f::P, g::P, C; generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
+    number_connected_components(compute_graph(f, g, C, generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf))
 end
