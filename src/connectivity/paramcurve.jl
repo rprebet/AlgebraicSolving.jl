@@ -105,8 +105,8 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
     @time begin
     PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,DEG+2)
     _values = Vector{QQFieldElem}(undef,DEG+2)
-    i, c = 1, 0
-    while c < DEG+2
+    i, c = 1, 1
+    while c <= DEG+2
         #println("$c/ $(DEG+2)")
         if i > 2*(DEG+2)
             error("Too many bad specializations")
@@ -121,10 +121,11 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
                 lc = leading_coefficient(r.elim)
                 # TODO: why dividing by lc ?
                 rr = [ p/lc for p in vcat(r.elim, r.denom, r.param) ]
-                PARAM[i] = rr
-                _values[i] = QQ(i)
+                PARAM[c] = rr
+                _values[c] = QQ(i)
                 c += 1
             else
+                #println(r.vars, rem_ind(R.S, N-1))
                 println("bad specialization: ", i)
             end
         #catch
@@ -150,7 +151,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
         end
 
         C = [ collect(coefficients(c)) for c in COEFFS ]
-        POL_term = [C[i][j]*x^(i-1)*y^(j-1) for i in 1:length(C) for j in 1:length(C[i])]
+        POL_term = [C[i][j]*y^(i-1)*x^(j-1) for i in 1:length(C) for j in 1:length(C[i])]
         POL = length(POL_term) > 0 ? sum(POL_term) : T(0)
 
         POLY_PARAM[count] = POL
