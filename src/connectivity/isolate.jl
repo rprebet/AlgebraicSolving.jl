@@ -1,6 +1,7 @@
 include("src/usolve/usolve.jl")
 
 function isolate(f; prec = 32, software="msolve")
+    #println(f)
     # Univariate isolation using usolve
     if total_degree(f) == 0
         return []
@@ -9,7 +10,6 @@ function isolate(f; prec = 32, software="msolve")
 	if software == "usolve"
 		return usolve(f, precision = prec, uspath="AlgebraicSolving.jl/src/connectivity/src/usolve/usolve", output="inter", v=2)
     else
-        #println(f)
         sols = real_solutions(Ideal([change_ringvar(f)]), precision=prec, interval=true, info_level=0)
         return getindex.(sols, 1)
     end
