@@ -23,6 +23,22 @@ function rem_var(f, i)
     return finish(C)
 end
 
+function rem_var(f, i, S)
+    # Remove the occurence of the ith variable
+    R = parent(f)
+    A, Avars = polynomial_ring(base_ring(R), rem_ind(S, i))
+    CE = [collect(coefficients(f)), collect(exponent_vectors(f))]
+    CE[2] = [ rem_ind(e, i) for e in CE[2]]
+
+    # Reconstruct the polynomial in the ring A
+    C = MPolyBuildCtx(A)
+    R = base_ring(A)
+    for i in eachindex(CE[1])
+        push_term!(C, R(CE[1][i]), CE[2][i]);
+    end
+    return finish(C)
+end
+
 function rem_ind(L,i::Int)
     # remove element at index i
     return [ L[1:i-1]; L[i+1:end] ]
