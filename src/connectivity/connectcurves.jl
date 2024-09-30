@@ -8,7 +8,7 @@ export compute_graph, connected_components, number_connected_components, group_b
 
  # DEBUG
  export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd, isolate_eval, isolate,
- rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs, array_to_poly, parray_asvar, poly_to_array
+ rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs, array_to_poly, parray_asvar, poly_to_array, homogenize, rem_var, intersect_biv, num_biv_rat_mod, parray_asvarcoeff
 
 include("tools.jl")
 include("subresultants.jl")
@@ -286,10 +286,6 @@ end
                 # push!(Corr[i][j][2][1], length(Vert))
                 # We will subsequently add the vertex in the graph
                 # push!(Viso, length(Vert))
-            ############################################
-            ## TO BE REPLACED BY APPSING IDENTIFICATOR ##
-            ## works for space curves without nodes   ##
-            ############################################
             else
                 # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
                 push!(Edg, (Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]))
