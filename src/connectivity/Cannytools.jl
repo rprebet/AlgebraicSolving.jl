@@ -27,7 +27,8 @@ function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: M
 end
 
 function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: PolyRingElem}
-    A, (x,) = polynomial_ring(QQ, [parent(first(F)).S])
+    R = parent(first(F))
+    A, (x,) = polynomial_ring(base_ring(R), [R.S])
     return change_ringvar([ evaluate(f, x) for f in F ], newvarias_S)
 end
 
@@ -57,6 +58,48 @@ end
 function change_ringvar(f::MPolyRingElem)
     return first(change_ringvar([f]))
 end
+
+# Return the polynomials in F, but injected in the polynomial ring with newvarias_S as new variables
+function change_ringvar_mod(F::Vector{P}, newvarias_S::Vector{Symbol}, oldvarias_S::Vector{Symbol}) where {P <: MPolyRingElem}
+    R = parent(first(F))
+    # Locate variables of R in newvarias
+    to_varias = Vector{Int}(undef,0)
+    for v in newvarias_S
+        ind = findfirst(x->x==v, oldvarias_S)
+        push!(to_varias, typeof(ind)==Nothing ? length(oldvarias_S)+1 : ind)
+    end
+
+    ind_novarias = setdiff(eachindex(oldvarias_S), to_varias)
+    newR, newvarias = polynomial_ring(base_ring(R), newvarias_S)
+
+    res = typeof(first(F))[]
+    ctx = MPolyBuildCtx(newR)
+
+    for f in F
+        for (e, c) in zip(exponent_vectors(f), coefficients(f))
+            @assert(all([ e[i]==0 for i in ind_novarias ]), "Occurence of old variable.s found!")
+            push!(e, 0)
+            push_term!(ctx, c, [e[i] for i in to_varias ])
+        end
+        push!(res, finish(ctx))
+    end
+
+    return res
+end
+
+function change_ringvar_mod(F::Vector{P}, newvarias_S::Vector{Symbol}, oldvarias_S::Vector{Symbol}) where {P <: PolyRingElem}
+    R = parent(first(F))
+    A, (x,) = polynomial_ring(base_ring(R), oldvarias_S)
+    return change_ringvar_mod([ evaluate(f, x) for f in F ], newvarias_S, oldvarias_S)
+end
+
+function change_ringvar_mod(f::Union{MPolyRingElem, PolyRingElem}, newvarias_S::Vector{Symbol}, oldvarias_S::Vector{Symbol})
+    return first(change_ringvar_mod([f], newvarias_S, oldvarias_S))
+end
+
+#function change_ringvar_mod(f::Union{MPolyRingElem, PolyRingElem}, newvarias_S::Vector{Symbol})
+#    return first(change_ringvar_mod([f], newvarias_S, oldvarias_S))
+#end
 
 function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
