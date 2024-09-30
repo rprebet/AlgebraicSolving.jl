@@ -1,4 +1,24 @@
 # Some tools
+
+function homogenize(P::MPolyRingElem, i::Int, S::Vector{T} where T<:Union{Symbol, String})
+    A = base_ring(parent(P))
+    if iszero(P)
+        return zero(polynomial_ring(A, S)[1])
+    end
+    # Homogenize w.r.t to the i-th variables
+    LPc, LPe = poly_to_array(P)
+    deg, N = maximum(getindex.(LPe, i)), length(LPe[1])
+    for j in eachindex(LPe)
+        push!(LPe[j], deg-LPe[j][i])
+    end
+    R, = polynomial_ring(A, S)
+    return array_to_poly([LPc,LPe], R)
+end
+
+function homogenize(LP::Vector{P} where P<:MPolyRingElem, i::Int, S::Vector{T} where T<:Union{Symbol, String})
+    return [ homogenize(lp, 2, S) for lp in LP ]
+end
+
 function poly_to_array(P::MPolyRingElem)
     # return P as two lists ci and vi of resp. coeffs and exponents
     return [collect(coefficients(P)), collect(exponent_vectors(P))]
@@ -12,6 +32,19 @@ end
 function add_ind(L,i,x)
     # add element x at index i
     return [ L[1:i-1]; [x]; L[i:end] ]
+end
+
+function parray_asvarcoeff(LP, idx)
+    # takes the above representation of a poly P
+    # and outputs a representation of P with univariate coeffs in the i-th variable
+    A = parent(LP[1][1])
+    NLP = [ Vector{typeof(LP[1][1])}[], [] ]
+    for (c,e) in zip(LP[1], LP[2])
+        vcat(zeros(A, e[idx]), [c])
+        push!(NLP[1], vcat(zeros(A, e[idx]), [c]))
+        push!(NLP[2], rem_ind(e, idx))
+    end
+    return NLP
 end
 
 function parray_asvar(LP, idx)
@@ -275,12 +308,72 @@ function fact_gcd(delta::T, LP::Vector{T}) where (T <:MPolyRingElem)
     return Dict([ (i, change_ringvar(f, [first(R.S)]) ) for (i,f) in out ])
 end
 
-function param_crit_split(f,g)
+function num_biv_rat_mod(A, P, RS)
+    # Computes the numerator of the polynomial A(x,a(x)//b(x)) mod q
+    # where P = [q, a, b]
+    B = base_ring(parent(A))
+
+    T, = polynomial_ring(B, RS[1])
+    Puniv = [ T(coefficients_of_univariate(p)) for p in P ]
+
+    U, fU = Nemo.residue_ring(T, Puniv[1])
+    amod, bmod = fU.(Puniv[2:end])
+
+    newv = vcat(RS, [:t])
+    Tbiv, = polynomial_ring(T, newv[2:end])
+    Ah = homogenize(A, 2, newv)
+    Ah1 = array_to_poly(parray_asvarcoeff(poly_to_array(Ah), 1), Tbiv)
+    Ahmod = change_coefficient_ring(U, Ah1)
+
+    Aeval = evaluate(Ahmod, [amod, bmod])
+    return change_ringvar_mod(lift(Aeval), RS, newv)
+end
+
+function intersect_biv(P::Vector{T} where T<:Any, A::MPolyRingElem)
+    # P = [Lq, a, b] encodes sets (x,a(x)/b(x)) where Lq[i](x)=0
+    # Compute divisor dA of q that encodes intersection with A(x,y)=0
+    compt = 0
+    RS = parent(A).S
+    dA, dAf = [], []
+    pprod, p = 1, ZZ(1) << 60
+    while compt<12
+        #print("$compt,")
+        if compt>0
+            dAfold, dAold = copy(dAf), copy(dA)
+        end
+        p = next_prime(p)
+        Pp = change_coefficient_ring.(Ref(GF(p)), P)
+        Ap = change_coefficient_ring(GF(p), A)
+        #@time "Eval"
+        Apev = num_biv_rat_mod(Ap, Pp, RS)
+        dAp = gcd(Pp[1], Apev)
+        dA = lift.(Ref(ZZ), coefficients_of_univariate(dAp))
+        if compt>0
+            dA = [ crt([d1, d2], [pprod, p], true) for (d1, d2) in zip(dAold, dA) ]
+        end
+        if length(filter!(!is_zero, dA)) <= 1
+            #println("Trivial gcd")
+            return one(parent(P[1]))
+        end
+        pprod = pprod*p
+        dAf = [ reconstruct(c, pprod) for c in dA ]
+        if compt>0
+            dAf != dAfold || break
+        end
+        compt += 1
+    end
+    #println()
+    B, = polynomial_ring(QQ, RS[1])
+    return change_ringvar(B(dAf), RS)
+end
+
+function param_crit_split(f, g; v=1, detect_app=true)
     # Compute subresultants and factor the first subresultant
+    v>0 && println("Compute subresultant sequence")
     if total_degree(f) > 30
-        sr = mmod_subresultants(f, derivative(f, 2), 2, list=true, n_ssr=2)
+        @iftime v>0 sr = mmod_subresultants(f, derivative(f, 2), 2, list=true, n_ssr=2)
     else
-        sr = subresultants(f, derivative(f, 2), 2, list=true)
+        @iftime v>0 sr = subresultants(f, derivative(f, 2), 2, list=true)
     end
 
     if total_degree(sr[1][1]) == 0
@@ -296,6 +389,8 @@ function param_crit_split(f,g)
     group_sqr = Dict(m => [r[1] for r in sqr if r[2] == m] for m in sqrmult)
     #println(group_sqr)
 
+    v>0 && println("Compute crit partition w.r.t to multiplicity")
+@iftime v>0 begin
     # Initalization
     singmult = filter(p->p*(p-1)<=sqrmult[end], 2:sqrmult[end])
     param_crit = Dict(p => [QQMPolyRingElem[], -sr[p][end-1], (p-1)*sr[p][end]]  for p in singmult)
@@ -308,20 +403,24 @@ function param_crit_split(f,g)
     end
 
     # Nodes : multiplicity 2 in res
+    v>0 && println("Compute apparent singularities")
     if 2 in sqrmult
-        A = derivative(derivative(f,2),2)*derivative(g,1) - derivative(derivative(f,1),2)*derivative(g,2)
-        A1 = numerator(evaluate(A, [2], [-sr[2][end-1]//sr[2][end]]))
-        dA = gcd.(group_sqr[2], Ref(A1))
-        push!(param_crit, -1=>[group_sqr[2]./dA, -sr[2][end-1], sr[2][end]])
-        append!(param_crit[2][1], dA)
+        if detect_app
+            A = derivative(derivative(f,2),2)*derivative(g,1) - derivative(derivative(f,1),2)*derivative(g,2)
+            dA = [ int_coeffs(intersect_biv([q, -sr[2][end-1], sr[2][end]], A)) for q in group_sqr[2] ]
+            @time "Division" push!(param_crit, -1=>[group_sqr[2]./dA, -sr[2][end-1], sr[2][end]])
+            append!(param_crit[2][1], dA)
+        else
+            push!(param_crit, -1=>[group_sqr[2], -sr[2][end-1], sr[2][end]])
+        end
     end
     # Other sing
     filter!(m->!(m in [1,2]), sqrmult)
     #TODO: simpler criterion for mult=p*(p-1)?
     lsr = [ try sr[p][end] catch; one(parent(f)) end for p in 2:(singmult[end]+1) ]
     Ld = Vector{Vector{Dict{Int, QQMPolyRingElem}}}(undef, length(sqrmult))
-    #Threads.@threads
-    for k in eachindex(sqrmult)
+    println("Compute gcd decomposition")
+    Threads.@threads for k in eachindex(sqrmult)
         Ld[k] = Vector{Dict{Int, QQMPolyRingElem}}(undef,length(group_sqr[sqrmult[k]]))
         for l in eachindex(group_sqr[sqrmult[k]])
             Ld[k][l] = fact_gcd(group_sqr[sqrmult[k]][l], lsr)
@@ -338,9 +437,11 @@ function param_crit_split(f,g)
             end
         end
     end
-
+end
     for i in eachindex(param_crit)
         filter!(p->total_degree(p)>0, param_crit[i][1])
     end
     return filter(p->length(p[2][1])>0, param_crit)
 end
+
+param_crit_split(f; v=1) = param_crit_split(f, zero(parent(f)), v=v, detect_app=false)
