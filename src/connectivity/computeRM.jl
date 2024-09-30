@@ -6,7 +6,7 @@
 
 export computeRM, computepolarproj, computepolarphi
 # DEBUG
-export change_ringvar, compute_minors, detmpoly
+export change_ringvar, compute_minors, detmpoly, change_ringvar_mod
 
 include("Cannytools.jl")
 
