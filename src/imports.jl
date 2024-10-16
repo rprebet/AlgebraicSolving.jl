@@ -10,7 +10,7 @@ using Plots, Colors
 import Plots: plot
 import Random: MersenneTwister
 import Logging: ConsoleLogger, with_logger, Warn, Info
-import Printf: @sprintf
+import Printf: @sprintf, @printf
 
 import Nemo:
     bell,
