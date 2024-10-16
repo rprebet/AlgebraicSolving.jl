@@ -1,6 +1,6 @@
 include("src/usolve/usolve.jl")
 
-function isolate(f; prec = 32, software="msolve")
+function isolate(f; prec = 32, software="usolve")
     #println(f)
     # Univariate isolation using usolve
     if total_degree(f) == 0
@@ -15,7 +15,7 @@ function isolate(f; prec = 32, software="msolve")
     end
 end
 
-function isolate_eval(f, ivar, val; prec=64, software="msolve")
+function isolate_eval(f, ivar, val; prec=64, software="usolve")
     #print(val)
     # univariate isolation of roots of a bivariate polynomial f
     # whose ivar-th variable is evaluated at val
@@ -25,6 +25,7 @@ function isolate_eval(f, ivar, val; prec=64, software="msolve")
     CD = lcm(map(denominator, collect(coefficients(fev))))
     fev *= CD
 
-    return isolate(fev, prec=prec, software=software)
+    tmp = isolate(fev, prec=prec, software=software)
+    return tmp
 
 end
