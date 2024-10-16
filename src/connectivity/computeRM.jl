@@ -6,7 +6,7 @@
 
 export computeRM, computepolarproj, computepolarphi
 # DEBUG
-export change_ringvar, compute_minors, detmpoly, change_ringvar_mod
+export change_ringvar, compute_minors, detmpoly, change_ringvar_mod, MPolyBuild
 
 include("Cannytools.jl")
 
@@ -38,21 +38,24 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
         push!(R, AlgebraicSolving.Ideal(vcat(curve, [fixvarias[j] - q[j] for j in 1:e])))
       else
         ## sing(Fq) ##
-        #println("Compute first the singular points")
-        singFq = computepolarproj(0, Fq, dimV-e, newvarias, output="real", verb=v, nr_thrds=Threads.nthreads())
+        v>0 && println("Compute first the singular points")
+        singFq = computepolarproj(0, Fq, dimV-e, newvarias, output="real", verb=v-1, nr_thrds=Threads.nthreads())
         @assert(length(singFq)==0, "Non-emtpy real sing locus!")
         #@assert(degree(singFq.elim)==0, "Non-emtpy sing locus!")
 
         ## K(pi_1,Fq) ##
-        K1Fq = computepolarproj(1, Fq, dimV-e, newvarias, output="interval", verb=v, nr_thrds=Threads.nthreads())
+        v >0 && println("First critical points")
+        K1Fq = computepolarproj(1, Fq, dimV-e, newvarias, output="interval", verb=v-1, nr_thrds=Threads.nthreads())
 
         ## K(pi_2, Fq) ##
-        K2Fq = computepolarproj(2, Fq, dimV-e, newvarias, output="minors", verb=v, nr_thrds=Threads.nthreads())
+        v >0 && println("Second critical points")
+        K2Fq = computepolarproj(2, Fq, dimV-e, newvarias, output="minors", verb=v-1, nr_thrds=Threads.nthreads())
         polar = change_ringvar(K2Fq.gens, A.S)
         push!(R, AlgebraicSolving.Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
 
         ## Points with vertical tg in K(pi_2, Fq) ##
-        K1WmFq = computepolarproj(2, K2Fq, 1, newvarias, output="interval", dimproj=0, verb=v, nr_thrds=Threads.nthreads())
+        v >0 && println("Vertical tg points")
+        K1WmFq = computepolarproj(2, K2Fq, 1, newvarias, output="interval", dimproj=0, verb=v-1, nr_thrds=Threads.nthreads())
 
         ## New base points ##
         K1W = vcat(K1Fq, K1WmFq)
