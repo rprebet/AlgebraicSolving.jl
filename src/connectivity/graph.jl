@@ -53,11 +53,13 @@ function connected_components(G, Vemph=[]; ind_abs=false)
     end
 
     if length(Vemph)>0
-        CVemph = [ [] for _ in eachindex(components) ]
+        CVemph = [ Dict(k=>[] for k in eachindex(Vemph)) for _ in eachindex(components) ]
         for i in eachindex(components)
             for j in eachindex(components[i])
-                if components[i][j] in Vemph
-                    push!(CVemph[i], ind_abs ? components[i][j] : j)
+                for k in eachindex(Vemph)
+                    if components[i][j] in Vemph[k]
+                        push!(CVemph[i][k], ind_abs ? components[i][j] : j)
+                    end
                 end
             end
         end
