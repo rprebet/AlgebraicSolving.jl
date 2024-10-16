@@ -8,7 +8,8 @@ export compute_graph, connected_components, number_connected_components, group_b
 
  # DEBUG
  export interp_subresultants, mmod_subresultants, subresultants, diff, diff_list, trimat_rand, fact_gcd, isolate_eval, isolate,
- rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs, array_to_poly, parray_asvar, poly_to_array, homogenize, rem_var, intersect_biv, num_biv_rat_mod, parray_asvarcoeff
+ rat_to_Arb, evaluate_Arb, evaluate_Arb_rat, int_coeffs, array_to_poly, parray_asvar, poly_to_array, homogenize, rem_var,
+ intersect_biv, num_biv_rat_mod, parray_asvarcoeff, mmod_param_crit
 
 include("tools.jl")
 include("subresultants.jl")
@@ -22,17 +23,25 @@ include("src/resultant/bresultant.jl")
 function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); generic=true, precx = 150, v=0, arb=true, int_coeff=true, outf=true)  where (P <: MPolyRingElem)
     R = parent(f)
     x, y = gens(R)
-
+    intC = int_coeff ? int_coeffs : identity
     # Pre-processing the input
-    f = int_coeff ? int_coeffs(f) : f
+    f, g  = intC([f,g])
     changemat = generic ? [1 0; 0 1] : trimat_rand(QQ, 2, range=-100:100)
     f = evaluate(f, collect(changemat*[x; y]));
     v > 1 && println(f)
 
-    v > 0 && println("\nCompute parametrization of critical pts...")
-    @iftime (v > 0) params = param_crit_split(f,g)
-    #println(params)
-    #append!(params, C)
+    v > 0 && println("Compute parametrization of critical pts...")
+    @iftime (v > 0) params = param_crit_split(f,g,v=v-1, detect_app=true)
+    #@iftime (v > 0) params = mmod_param_crit(f, g,v=v-1, detect_app=false)
+    #=params = Bresultant(f, derivative(f,2), bspath="AlgebraicSolving.jl/src/connectivity/src/resultant/bresultant",v=2);
+    params = change_ringvar.(params, Ref([:x,:y]))
+    params = [ [[p[1]], p[3], p[2]] for p in params]
+    params = Dict(1=>params[1], -1=>params[2])=#
+
+    for i in 1:length(C)
+        params[-i] = [ [C[i][1] |> intC], C[i][2], C[i][3] ]
+    end
+    #println(keys(params))
     if arb
         compt = 0
         while compt < 5
@@ -66,7 +75,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
             end
             catch
                 precx *= 2
-                v > 0 && println("Refine x-precision to $precx")
+                v > 0 && println("\nRefine x-precision to $precx")
                 compt += 1
             else
                 break
@@ -93,6 +102,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
         xcritpermut = order_permut2d(xcrit);
     end
     end
+    #println(xcrit)
 
     v > 0 && println("\nTest for identifying singular boxes")
 @iftime (v > 0) begin
@@ -101,8 +111,8 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
     #########################################################
     Lfyk = diff_list(f, 2, max(maximum(eachindex(LBcrit)),2))
     for ind in eachindex(LBcrit)
-        ind!=1 || continue # extreme pts
-        m = ind==-1 ? 2 : ind # nodes have mult 2
+        ind>1 || ind==0 ||  continue # extreme and control pts
+        m = ind==0 ? 2 : ind # nodes have mult 2
         while true
             flag = false
             for j in eachindex(LBcrit[ind])
@@ -130,7 +140,7 @@ end
     ndig = maximum([ndigits(length(LBcrit[i])) for i in eachindex(LBcrit)])
     for i in eachindex(LBcrit)
         LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
-        ndigi = Int(floor(log10(max(1,length(LBcrit[i])))))
+        ndigi = ndigits(length(LBcrit[i]))
         Ptype = (i > length(LBcrit)-length(C)) ? "Pcon" : "mult"
         precxtmp = precx
         compt = 0
@@ -275,10 +285,8 @@ end
         ###########################
         # The critical point
         ##########################
-        # If we are dealing with a node
-        if i == -1
-            # if it is an isolated point
-            if isempty(nI[1]) && isempty(nI[2])
+        # If we are dealing with a isolated node
+        if i in [0,2] && isempty(nI[1]) && isempty(nI[2])
                 push!(Lapp[1], (i,j))
                 #pass
                 # We can add the isolated  vertex
@@ -286,12 +294,12 @@ end
                 # push!(Corr[i][j][2][1], length(Vert))
                 # We will subsequently add the vertex in the graph
                 # push!(Viso, length(Vert))
-            else
-                # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
-                push!(Edg, (Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]))
-                push!(Edg, (Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]))
-                push!(Lapp[2], (i,j))
-            end
+        # If we are dealing with an apparent singularity
+        elseif i == 0
+            # We connect the pairwise opposite branches nI[1][1][i] and nI[1][2][i+1 mod 2], i=1,2
+            push!(Edg, (Corr[i][j][1][nI[1][1]], Corr[i][j][3][nI[2][2]]))
+            push!(Edg, (Corr[i][j][1][nI[1][2]], Corr[i][j][3][nI[2][1]]))
+            push!(Lapp[2], (i,j))
         else
             # We can add the vertex
             push!(Vert, (xcmid, ycmid))
@@ -304,10 +312,10 @@ end
             for k in nI[2]
                 push!(Edg, (length(Vert), Corr[i][j][3][k]))
             end
-            #if i > length(params)-length(C)
-            #    # If this is a control point
-            #    push!(Vcon[i + length(C) - length(params)], length(Vert))
-            #end
+            if i < 0
+                # If this is a control point
+                push!(Vcon[-i], length(Vert))
+            end
         end
         ###########################
         # Above the critical point
@@ -322,11 +330,7 @@ end
     if v > 0 && Lapp != [[],[]]
         println("Removed apparent singularities: $(length(Lapp[1])) isolated  $(length(Lapp[2])) nodes")
     end
-    #EdgPlot = [[Vert[k] for k in [i, j]] for (i, j) in Edg]
-    #plot_graph(Vert, EdgPlot)
-    #gui()
 
-    #plot_graph_comp(Vert,CEdg)
     # Operate inverse change of variable if necessary
     if !(generic)
         for i in eachindex(Vert)
@@ -343,14 +347,14 @@ end
     end
 end
 
-function compute_graph(f::P, C::Dict{Int,Vector{P}}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
-    G, Vcon = compute_graph(f, collect(values(C)), generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf)
+function compute_graph(f::P, g::P,  C::Dict{Int,Vector{P}}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
+    G, Vcon = compute_graph(f, g, collect(values(C)), generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf=outf)
     VC = Dict{Int64, Vector{Int}}([ k => Vcon[i] for (i,k) in enumerate(keys(C)) ])
     return G, VC
 end
 
-function compute_graph(f::P, C::Vector{P}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
-    G, (Vcon,) = compute_graph(f, [C], generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf = outf)
+function compute_graph(f::P, g::P, C::Vector{P}; generic=true, precx = 150, v=0, arb=true, int_coeff=false, outf = true) where (P <: MPolyRingElem)
+    G, (Vcon,) = compute_graph(f, g, [C], generic=generic, precx=precx, v=v, arb=arb, int_coeff=int_coeff, outf = outf)
     return G, Vcon
 end
 
