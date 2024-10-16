@@ -1,3 +1,5 @@
+export parse_poly
+
 function PolyToBRstring(f)
     fc, fe = map(collect, [coefficients(f), exponent_vectors(f)])
     s = string(length(fc), " 2\n")
@@ -38,31 +40,71 @@ function ToBresultant(f, g, finput="/tmp/in.bs")
     close(ff)
 end
 
+function parse_poly(poly_str)
+    # Regular expression to match terms of the form "ax^n", "bx", or constants
+    term_pattern = r"([+-]?[ ]*\d*)[\*]?x\^(\d+)|([+-]?[ ]*\d*)[\*]?x|([+-]?[ ]*\d+)"
+
+    # Initialize a dictionary to store the coefficients with their exponents
+    coeffs = Dict{Int, BigInt}()
+
+    # Use the regular expression to find all matches
+    for m in eachmatch(term_pattern, poly_str)
+        #println(m)
+        if !isnothing(m.captures[1]) && !isnothing(m.captures[2])  # Matches ax^n
+            s = m.captures[1] * (m.captures[1] in ["","-","+"] ? "1" : "")
+            coeffs[parse(Int, m.captures[2])] = parse(BigInt, s)
+        elseif !isnothing(m.captures[3])  # Matches bx (degree 1 term)
+            s = m.captures[3] * (m.captures[3] in ["","-","+"] ? "1" : "")
+            coeffs[1] = parse(BigInt, s)
+        elseif !isnothing(m.captures[4])  # Matches constant term
+            coeffs[0] = parse(BigInt, m.captures[4])
+        end
+    end
+
+    # Get the highest degree
+    max_degree = maximum(keys(coeffs))
+    # Create the list of coefficients starting from the highest degree
+    result = [get(coeffs, i, 0) for i in 0:max_degree]
+
+    return result
+end
+
 function FromBresultant(output="p", foutput="/tmp/out.bs")
     #x, y = symbols("x y")
-    #A, (x, y) = ZZ[], PolynomialRing(ZZ, ["x", "y"])
-    ff = open(foutput, "r")
+    A, x = polynomial_ring(QQ, :x)
+    ff = open(foutput, "r+")
     s = read(ff, String)
-    s = replace(s, "\n" => "", ":" => "", ";" => "")
-    L = eval(Meta.parse(s))
-    close(ff)
-    return L
+    #println(s)
+    Ls = split.(split(replace(s, r":|;\n|\[\n\[|\]\n\]" => ""), "],\n["), Ref(",\n"))
+    Lcs = [ parse_poly.(ls) for ls in Ls ]
+    #println(Lcs)
+    return [ A.(ls) for ls in Lcs ]
 end
 
 function Bresultant(f, g; fname1="/tmp/in.bs", fname2="/tmp/out.bs", bspath="./bresultant", v=0)
-    ToBresultant(f, g, fname1)
-    out = run(pipeline(`$bspath -f $fname1 -o $fname2`, stderr="/tmp/err.log.bs"))
+    @time ToBresultant(f, g, fname1)
+    #err = Pipe()
+    @time process = run(pipeline(`$bspath -f $fname1 -o $fname2`))
+
+    #=
+    #close(err.in)
     if v > 0
-    	ff = open("/tmp/err.log.bs", "r")
-    	println(read(ff, String))
-    	close(ff)
+        c=0
+        while c <100
+            out = @async String(read(err))
+            println(out)
+            c +=1
+        end
     end
     #if v == 1
     #    println(split(stderr(out), '\n')[end - 1] |> x -> split(x, ": ")[end] * "s")
     #elseif v == 2
     #    println(stderr(out))
     #end
-    return FromBresultant(fname2)
+    wait(process)
+    =#
+
+    return @time FromBresultant(fname2)
 end
 
 #using Nemo
