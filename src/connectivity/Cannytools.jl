@@ -28,8 +28,22 @@ end
 
 function change_ringvar(F::Vector{P}, newvarias_S::Vector{Symbol}) where {P <: PolyRingElem}
     R = parent(first(F))
-    A, (x,) = polynomial_ring(base_ring(R), [R.S])
-    return change_ringvar([ evaluate(f, x) for f in F ], newvarias_S)
+    to_varias = [ v==R.S ? 1 : 2 for v in newvarias_S]
+    newR, = polynomial_ring(base_ring(R), newvarias_S)
+
+    res = typeof(zero(newR))[]
+    ctx = MPolyBuildCtx(newR)
+
+    LcF = [ filter!(t->t[2]!=0, collect(enumerate(coefficients(f)))) for f in F ]
+    for f in LcF
+        for (ef, c) in f
+            e = [ef-1, 0]
+            push_term!(ctx, c, [e[i] for i in to_varias ])
+        end
+        push!(res, finish(ctx))
+    end
+
+    return res
 end
 
 function change_ringvar(f::Union{MPolyRingElem, PolyRingElem}, newvarias_S::Vector{Symbol})
@@ -101,7 +115,32 @@ end
 #    return first(change_ringvar_mod([f], newvarias_S, oldvarias_S))
 #end
 
+function MPolyBuild(F::Vector{Vector{P}}, newvarias_S::Vector{Symbol}, idx::Int) where {P <: RingElem}
+    A = parent(first(first(F)))
+    R, = polynomial_ring(A, newvarias_S)
+    to_varias = [ i==idx ? 1 : 2 for i in eachindex(newvarias_S) ]
+
+    res = typeof(zero(R))[]
+    ctx = MPolyBuildCtx(R)
+
+    LcF = [ filter!(t->t[2]!=0, collect(enumerate(f))) for f in F ]
+    for f in LcF
+        for (ef, c) in f
+            e = [ef-1, 0]
+            push_term!(ctx, c, [e[i] for i in to_varias ])
+        end
+        push!(res, finish(ctx))
+    end
+
+    return res
+end
+
+function MPolyBuild(f::Vector{P}, newvarias_S::Vector{Symbol}, idx::Int) where {P <: RingElem}
+    return first(MPolyBuild([f], newvarias_S, idx))
+end
+
 function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
+    #println("$j $V $dimV")
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
     @assert output in ["minors", "groebner", "real", "parametric", "interval"] "Wrong output parameter"
     R = parent(V)
@@ -111,6 +150,7 @@ function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; d
     JW = transpose([ derivative(f, k) for k=j+1:n, f in hV ])
     sizeminors = c + dimproj - (j-1)
     hW = vcat(hV, compute_minors(sizeminors, JW, R))
+    filter!(!iszero, hW)
      output_functions = Dict(
         "minors" => x -> x,
         "groebner" => x -> groebner_basis(x, info_level=verb,nr_thrds=nr_thrds),
@@ -122,19 +162,19 @@ function computepolarproj(j::Int, V::AlgebraicSolving.Ideal, dimV::Int, varbs; d
     return output_functions[output](AlgebraicSolving.Ideal(hW))
 end
 
-function computepolarphi(j::Int, V::AlgebraicSolving.Ideal, phi::MPolyRingElem, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
+function computepolarphi(j::Int, V::AlgebraicSolving.Ideal, phi::Vector{T} where T<:MPolyRingElem, dimV::Int, varbs; dimproj=j-1, characteristic=0, output="minors", verb=0, nr_thrds=1)
     # Compute the set of points x where pi_j(T_x(V)) has dimension < dimproj
     @assert output in ["minors", "groebner", "real", "parametric", "interval"] "Wrong output parameter"
     R = parent(V)
-    n, hV = R.nvars, V.gens
+    n, hV = nvars(R), V.gens
     c = n - dimV
 
     if j==0
         JW = transpose([ derivative(f, k) for k=1:n, f in hV ])
         sizeminors = c
     else
-        JW = transpose([ derivative(f, k) for k=j:n, f in [hV;[phi]] ])
-        sizeminors = c + 1 + dimproj - (j-1)
+        JW = transpose([ derivative(f, k) for k=1:n, f in vcat(hV,phi) ])
+        sizeminors = c + j + dimproj - (j-1)
     end
     hW = vcat(hV, compute_minors(sizeminors, JW, R))
      output_functions = Dict(
@@ -183,7 +223,7 @@ function combinations(a, n)
     return _combinations(a, n, 1, Vector{Int}([]))
 end
 
-function detmpoly(A::Matrix{QQMPolyRingElem}, R)
+function detmpoly(A::Matrix{T} where T<:MPolyRingElem, R)
     # Get the size of the matrix
     n = size(A, 1)
     if n != size(A, 2)
@@ -195,7 +235,7 @@ function detmpoly(A::Matrix{QQMPolyRingElem}, R)
     end
 
     # Initialize the determinant polynomial
-    detA = QQMPolyRingElem(R,0)
+    detA = zero(R)
 
     # Compute the determinant polynomial
     for j = 1:n
