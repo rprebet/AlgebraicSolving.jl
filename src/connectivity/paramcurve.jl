@@ -121,33 +121,42 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
     @time begin
     PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,DEG+2)
     _values = Vector{QQFieldElem}(undef,DEG+2)
-    i, c = 1, 1
-    while c <= DEG+2
-        #println("$c/ $(DEG+2)")
+    i = 1
+    free_ind = collect(1:DEG+2)
+    used_ind = zeros(Bool, DEG+2)
+    while length(free_ind) > 0
+        #println("$(DEG+2-length(free_ind))/ $(DEG+2)")
         if i > 2*(DEG+2)
             error("Too many bad specializations")
         end
-
-        #try
-            Feval = [ evaluate(f, [N-1], [QQ(i)]) for f in F ]
-            Feval = [ rem_var(f, N-1) for f in Feval ]
-            r = rational_parametrization(Ideal(Feval), nr_thrds=Threads.nthreads())
+        LFeval = Vector{AlgebraicSolving.Ideal}(undef, length(free_ind))
+        Threads.@threads for j in 1:length(free_ind)
+            LFeval[i+j-1] = Ideal([ rem_var(evaluate(f, [N-1], [QQ(i+j-1)]), N-1) for f in F ])
+        end
+        Lr = Vector{AlgebraicSolving.RationalParametrization}(undef, length(free_ind))
+        for j in 1:length(free_ind)
+            #println("$(i+j-1)/$(DEG+2)")
+            Lr[i+j-1] = rational_parametrization(LFeval[i+j-1], nr_thrds=Threads.nthreads())
+        end
+        for j in 1:length(free_ind)
             # For lifting: the same variable must be chosen for the param
-            if  r.vars == rem_ind(R.S, N-1)
-                lc = leading_coefficient(r.elim)
-                # TODO: why dividing by lc ?
-                rr = [ p/lc for p in vcat(r.elim, r.denom, r.param) ]
-                PARAM[c] = rr
-                _values[c] = QQ(i)
-                c += 1
+            if  Lr[j].vars == rem_ind(R.S, N-1)
+                lc = leading_coefficient(Lr[j].elim)
+                # TODO: why dividing by lc ? To get a unique representative?
+                rr = [ p/lc for p in vcat(Lr[j].elim, Lr[j].denom, Lr[j].param) ]
+                PARAM[j] = rr
+                _values[j] = QQ(i+j-1)
+                used_ind[j] = true
+                #println("Good specialization: ",i+j-1)
             else
                 #println(r.vars, rem_ind(R.S, N-1))
-                println("bad specialization: ", i)
+                println("bad specialization: ", i+j-1)
             end
-        #catch
-        #    error("bad specialization: ", i)
-        #end
-        i += 1
+        end
+
+        i += length(free_ind)
+        free_ind = [ free_ind[j] for j in eachindex(free_ind) if !used_ind[j] ]
+        used_ind = zeros(Bool, length(free_ind))
     end
     end
 
@@ -178,9 +187,11 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
 end
 
 function param_newvars(F::Vector{P} where P <: MPolyRingElem, Svars::Vector{Symbol}, cfs_lf::Vector{Vector{I}} where I<:Union{ZZRingElem, QQFieldElem})
-    eq = change_ringvar(F, Svars)
+    Svarsbis = vcat(Svars[1:end-2], reverse!(Svars[end-1:end]))
+    eq = change_ringvar(F, Svarsbis)
 	newvarias = gens(parent(first(eq)))
-	neweq = vcat(eq, [ transpose(lf)*newvarias for lf in cfs_lf ])
+    newvariasbis = vcat(newvarias[1:end-2], reverse!(newvarias[end-1:end]))
+	neweq = vcat(eq, [ transpose(lf)*newvariasbis for lf in cfs_lf ])
 
 	C = rational_parametrization(Ideal(neweq))
 	return change_ringvar([C.elim, C.elim == -1 ? C.elim : C.param[end], C.denom], [:x,:y])
