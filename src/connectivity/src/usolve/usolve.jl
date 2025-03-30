@@ -23,8 +23,8 @@ end
 function usolve_out_to_tuple(foutput="/tmp/out.us")
 	ff = open(foutput, "r")
 	s = read(ff, String)
-	Ls = split(s, "\n")[1:end-1]
-	Ls = [ split(ls, " ") for ls in Ls[2:end] ]
+	Ls = Base.split(s, "\n")[1:end-1]
+	Ls = [ Base.split(ls, " ") for ls in Ls[2:end] ]
 	return [ [eval(Meta.parse("ZZ($l)")) for l in ls] for ls in Ls ]
 end
 

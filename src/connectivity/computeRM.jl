@@ -39,27 +39,27 @@ function computeRM(V::Ideal{T} where T <: QQMPolyRingElem, dimV::Int, Q=Vector{V
       else
         ## sing(Fq) ##
         v>0 && println("Compute first the singular points")
-        singFq = computepolarproj(0, Fq, dimV-e, newvarias, output="real", verb=v-1, nr_thrds=Threads.nthreads())
+        singFq = computepolarproj(0, Fq, dimV-e, newvarias, output="real", verb=max(v-1,0), nr_thrds=Threads.nthreads())
         @assert(length(singFq)==0, "Non-emtpy real sing locus!")
         #@assert(degree(singFq.elim)==0, "Non-emtpy sing locus!")
 
         ## K(pi_1,Fq) ##
         v >0 && println("First critical points")
-        K1Fq = computepolarproj(1, Fq, dimV-e, newvarias, output="interval", verb=v-1, nr_thrds=Threads.nthreads())
+        K1Fq = computepolarproj(1, Fq, dimV-e, newvarias, output="interval", verb=max(v-1,0), nr_thrds=Threads.nthreads())
 
         ## K(pi_2, Fq) ##
         v >0 && println("Second critical points")
-        K2Fq = computepolarproj(2, Fq, dimV-e, newvarias, output="minors", verb=v-1, nr_thrds=Threads.nthreads())
+        K2Fq = computepolarproj(2, Fq, dimV-e, newvarias, output="minors", verb=max(v-1,0), nr_thrds=Threads.nthreads())
         polar = change_ringvar(K2Fq.gens, A.S)
         push!(R, AlgebraicSolving.Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
 
         ## Points with vertical tg in K(pi_2, Fq) ##
         v >0 && println("Vertical tg points")
-        K1WmFq = computepolarproj(2, K2Fq, 1, newvarias, output="interval", dimproj=0, verb=v-1, nr_thrds=Threads.nthreads())
+        K1WmFq = computepolarproj(2, K2Fq, 1, newvarias, output="interval", dimproj=0, verb=max(v-1,0), nr_thrds=Threads.nthreads())
 
         ## New base points ##
         K1W = vcat(K1Fq, K1WmFq)
-        K1WRat = MidRationalPoints(getindex.(K1W,1))
+        K1WRat = MidRationalPoints(getindex(K1W, 1))
         newQ = [ vcat(q, [kv]) for kv in K1WRat ]
         # Heuristic to be proven
         # newQ = newQ[2:end-1]

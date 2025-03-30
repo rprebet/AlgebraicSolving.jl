@@ -50,6 +50,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
                 v > 0 && println("\nIsolating critical values with precision ", precx,"..")
             @iftime (v > 0) begin
                 xcrit = Dict(p[1]=> reduce(vcat, [isolate(pp, prec=precx) for pp in p[2][1]]) for p in params)
+                # Enlarge exact isolating root intervals
                 for i in eachindex(xcrit)
                     for j in eachindex(xcrit[i])
                         if xcrit[i][j][1]==xcrit[i][j][2]
@@ -65,6 +66,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
                 precArb = precx
                 Pcrit = Dict( i => [[xc, evaluate_Arb(params[i][2], params[i][3], rat_to_Arb(xc, precArb))] for xc in xcrit[i]] for i in eachindex(xcrit))
                 LBcrit =Dict( i=> [[ map(QQ, pc[1]), map(QQ, Arb_to_rat(pc[2])) ]  for pc in pcrit] for (i, pcrit) in Pcrit)
+                # Enlarge exact isolating box vertical side (horizontal lines)
                 for i in eachindex(LBcrit)
                     for j in eachindex(LBcrit[i])
                         if LBcrit[i][j][2][1]==LBcrit[i][j][2][2]
@@ -89,6 +91,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
     @iftime (v > 0) begin
         # TODO: parameter -I
         LBcrit = Dict(p[1]=>reduce(vcat,[ sort(real_solutions(AlgebraicSolving.Ideal([pp,  p[2][3]*y-p[2][2]]), precision=precx,interval=true),by=t->t[1])  for pp in p[2][1] ]) for p in params)
+        # Enlarge each exact isolating box side
         for i in eachindex(LBcrit)
             for j in eachindex(LBcrit[i])
                 for k in eachindex(LBcrit[i][j])
@@ -117,6 +120,7 @@ function compute_graph(f::P, g::P, C::Vector{Vector{P}}=Vector{Vector{P}}(); gen
             flag = false
             for j in eachindex(LBcrit[ind])
                 pcrit = [ rat_to_Arb(c, precx) for c in LBcrit[ind][j] ]
+                # Check if the the mult(pcrit)-th derivative of f vanishes on pcrit
                 if contains_zero(evaluate(Lfyk[m+1], pcrit))
                     (v > 0) && println("Refine singular boxes of multiplicity ", m)
                     # TODO refine_boxes(params[k], LBcrit[k])
@@ -140,8 +144,10 @@ end
     ndig = maximum([ndigits(length(LBcrit[i])) for i in eachindex(LBcrit)])
     for i in eachindex(LBcrit)
         LPCside[i] = Array{Any}(undef, length(LBcrit[i]))
+        # Data printing part
         ndigi = ndigits(length(LBcrit[i]))
         Ptype = (i > length(LBcrit)-length(C)) ? "Pcon" : "mult"
+        ###
         precxtmp = precx
         compt = 0
         while compt < 5

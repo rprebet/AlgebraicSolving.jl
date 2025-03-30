@@ -59,7 +59,7 @@ function compute_param(I::Ideal{P} where P<:MPolyRingElem; use_lfs = false, lfs 
     return compute_param(I.gens, use_lfs = use_lfs, lfs = lfs)
 end
 
-function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs = [])
+function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs = [], v=0)
     R = parent(first(F))
     varias, N = gens(R), nvars(R)
     DEG = deg_Alg(F,1)
@@ -73,7 +73,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
             if NEW_DEG == DEG
                 push!(ivarias_gen, ind)
             end
-            (length(ivarias_gen) < 2 && ind > 0) || break
+            (length(ivarias_gen) < 2 && ind > 1) || break
             ind -= 1
         end
         reverse!(ivarias_gen)
@@ -116,9 +116,10 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
         lf_cfs = vcat(lfs, [ rand(ZZ(-100):ZZ(100), N) for _ in 1:2-length(lfs)])
         append!(F, [ transpose(lf)*varias  for lf in lf_cfs ])
     end
+    println(varias)
     # Compute DEG+1 evaluations of the param (whose deg is bounded by DEG)
-    println("Parametrization step...")
-    @time begin
+    v > 0 && println("Parametrization step...")
+    #@iftime v>0 begin
     PARAM  = Vector{Vector{AlgebraicSolving.QQPolyRingElem}}(undef,DEG+2)
     _values = Vector{QQFieldElem}(undef,DEG+2)
     i = 1
@@ -150,7 +151,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
                 #println("Good specialization: ",i+j-1)
             else
                 #println(r.vars, rem_ind(R.S, N-1))
-                println("bad specialization: ", i+j-1)
+                v>1 && println("bad specialization: ", i+j-1)
             end
         end
 
@@ -158,11 +159,11 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
         free_ind = [ free_ind[j] for j in eachindex(free_ind) if !used_ind[j] ]
         used_ind = zeros(Bool, length(free_ind))
     end
-    end
+    #end
 
     # Interpolate each coefficient of each poly in the param
-    println("Interpolation step...")
-    @time begin
+    v > 0 && println("Interpolation step...")
+    #@iftime v>0 begin
     POLY_PARAM = Vector{QQMPolyRingElem}(undef,N)
     T, (x,y) = polynomial_ring(QQ, [:x,:y])
     A, u = polynomial_ring(QQ, :u)
@@ -181,7 +182,7 @@ function compute_param(F::Vector{P} where P<:MPolyRingElem; use_lfs = false, lfs
 
         POLY_PARAM[count] = POL
     end
-    end
+    #end
 
     return [R.S, lf_cfs, POLY_PARAM[1], POLY_PARAM[2], POLY_PARAM[3:end]]
 end

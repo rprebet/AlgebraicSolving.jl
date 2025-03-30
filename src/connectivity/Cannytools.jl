@@ -290,13 +290,13 @@ function MidRationalPoints(S::Vector{Vector{QQFieldElem}})
     # S is a list of [ [l_1,r_1], ..., [l_n, r_n] ]
     # such that the [l_i, r_i] are rational and disjoint open intervals.
     #
-    # It orders the [l_i,r_i] and computes the simplest
+    # It orders the [l_i,r_i], removes repetitions and computes the simplest
     # rational points between these intervals.
-    n = length(S)
-    if n==0
-        return Vector{QQFieldElem}(undef, 0)
+    if isempty(S)
+        return QQFieldElem[]
     end
     S1 = sort(S, lt=(x, y) -> x[2] <= y[1])
+    n = unique!(S1) |> length
     ratioP = Vector{QQFieldElem}(undef, n-1)
     for i in 1:(n- 1)
         ri, li1 = S1[i][2], S1[i+1][1]

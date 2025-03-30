@@ -472,7 +472,7 @@ function intersect_biv(P::Vector{T} where T<:Any, A::MPolyRingElem)
                 dAf != dAfold || break
             end
         catch
-            println("No rational rec..")
+            #println("No rational rec..")
         end
         compt += 1
     end
