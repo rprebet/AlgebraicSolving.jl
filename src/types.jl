@@ -2,21 +2,46 @@ export Ideal
 
 mutable struct RationalParametrization
     vars::Vector{Symbol}
-    lf_cfs::Vector{ZZRingElem}
+    cfs_lf::Vector{ZZRingElem}
     elim::QQPolyRingElem
     denom::QQPolyRingElem
-    param::Vector{PolyRingElem}
+    param::Vector{QQPolyRingElem}
 
     function RationalParametrization(
             vars::Vector{Symbol},
-            lf_cfs::Vector{ZZRingElem},
+            cfs_lf::Vector{ZZRingElem},
             elim::QQPolyRingElem,
             denom::QQPolyRingElem,
-            param::Vector{PolyRingElem}
+            param::Vector{QQPolyRingElem}
         )
         rp = new()
         rp.vars   = vars
-        rp.lf_cfs = lf_cfs
+        rp.cfs_lf = cfs_lf
+        rp.elim   = elim
+        rp.denom  = denom
+        rp.param  = param
+
+        return rp
+    end
+end
+
+mutable struct RationalCurveParametrization
+    vars::Vector{Symbol}
+    cfs_lfs::Vector{Vector{ZZRingElem}}
+    elim::QQMPolyRingElem
+    denom::QQMPolyRingElem
+    param::Vector{QQMPolyRingElem}
+
+    function RationalCurveParametrization(
+            vars::Vector{Symbol},
+            cfs_lfs::Vector{Vector{ZZRingElem}},
+            elim::QQMPolyRingElem,
+            denom::QQMPolyRingElem,
+            param::Vector{QQMPolyRingElem}
+        )
+        rp = new()
+        rp.vars   = vars
+        rp.cfs_lfs = cfs_lfs
         rp.elim   = elim
         rp.denom  = denom
         rp.param  = param
@@ -28,6 +53,7 @@ end
 mutable struct Ideal{T <: MPolyRingElem}
     gens::Vector{T}
     dim::Int
+    deg::Int
     gb::Dict{Int, Vector{T}}
     inter_sols::Vector{Vector{Vector{QQFieldElem}}}
     real_sols::Vector{Vector{QQFieldElem}}
@@ -38,11 +64,12 @@ mutable struct Ideal{T <: MPolyRingElem}
         I = new{T}()
         I.gens = F
         I.dim  = -1
+        I.deg = -1
         I.gb   = Dict()
 
         return I
     end
-end 
+end
 
 Base.parent(I::Ideal) = Nemo.parent(I.gens[1])
 
