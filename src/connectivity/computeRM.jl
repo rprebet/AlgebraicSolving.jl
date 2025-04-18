@@ -17,13 +17,19 @@ function computeRM(
         v::Int=0,                                               # verbosity level
         checks::Bool=false                                      # perform checks (dimension, regularity, etc.)
     )
+    # Some base cases
+    A = parent(V)
+    varias = gens(A)
+    if length(varias)<=2
+        return [V]
+    end
     # Some preprocessing
     V.dim == -1 && dimension(V)
     println(Q)
+    println(C)
+    println()
     isempty(Q) && push!(Q,[])
-    # Get data
-    A = parent(V)
-    varias, nvarias = gens(A), nvars(A)
+    # Base points
     e = length(first(Q))
     fixvarias = varias[1:e]
 
@@ -76,11 +82,12 @@ function computeRM(
             # Heuristic to be proven
             #K1WRat = K1WRat[2:end-1]
             ##########
-            append!(K1WRat, [ c[e+1] for c in C if c[1:e]==q && !(c[e+1] in K1WRat) ]) |> sort!
+            Cq = [c for c in C if c[1:e]==q]
+            append!(K1WRat, getindex.(Cq, e+1)) |> sort!
             newQ = [ vcat(q, [kv]) for kv in K1WRat ]
 
             if !isempty(newQ)
-                RMFq = computeRM(V, Q=newQ, C=C)
+                RMFq = computeRM(V, Q=newQ, C=Cq)
                 append!(RM, RMFq)
             end
         end
