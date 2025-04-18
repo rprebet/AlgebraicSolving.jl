@@ -18,6 +18,8 @@ include("algorithms/paramcurve.jl")
 include("algorithms/hilbert.jl")
 #= siggb =#
 include("siggb/siggb.jl")
+#= connectivity =#
+include("connectivity/computeRM.jl")
 #= examples =#
 include("examples/katsura.jl")
 include("examples/cyclic.jl")
