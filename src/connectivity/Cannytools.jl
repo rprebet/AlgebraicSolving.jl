@@ -77,32 +77,6 @@ function detmpoly(A::Matrix{T} where T<:MPolyRingElem, R)
     return detA
 end
 
-function modfQQ(x::QQFieldElem)
-    ipart, fpart = [ f(numerator(x), denominator(x)) for f in [div, rem]]
-    return QQFieldElem(fpart, denominator(x)), ipart
-end
-
-function small_mid_point(a::QQFieldElem,b::QQFieldElem)
-    a == b && return a
-    if b < a
-        a, b = b, a
-    end
-    x = (a+b)/ QQFieldElem(2)
-    fpart, ipart = modfQQ(x)
-    println("\n",fpart," , ", ipart)
-    q1, q2 = QQFieldElem(1//0), QQFieldElem(ipart,1)
-    while true
-        #println("(",q1," ; ",q2,")")
-        if numerator(fpart) == 0 || (q2 > a && q2 < b)
-            return q2
-        end
-        x = inv(fpart)
-        fpart, ipart = modfQQ(x)
-        println(fpart," , ", ipart)
-        q1, q2 = q2, QQFieldElem(numerator(q1) + ipart*numerator(q2), denominator(q1) + ipart*denominator(q2))
-    end
-end
-
 function MidRationalPoints(S::Vector{Vector{QQFieldElem}})
     # S is a list of [ [l_1,r_1], ..., [l_n, r_n] ]
     # such that the [l_i, r_i] are rational and disjoint open intervals.
@@ -118,8 +92,8 @@ function MidRationalPoints(S::Vector{Vector{QQFieldElem}})
     for i in 1:(n- 1)
         ri, li1 = S1[i][2], S1[i+1][1]
         @assert ri < li1 "The intervals are not disjoint."
-        #ratioP[i] = small_mid_point(ri, li1)
-        ratioP[i] = simplest_between(ri, li1)
+        eps = (li1-ri)//1000
+        ratioP[i] = simplest_between(ri + eps, li1 - eps)
     end
     return ratioP
 end

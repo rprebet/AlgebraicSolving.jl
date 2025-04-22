@@ -4,13 +4,22 @@
 #using AlgebraicSolving
 #using Nemo
 
-export computeRM, computepolarproj, computepolarphi, computepolar
+export roadmap, computepolarproj, computepolarphi, computepolar
 # DEBUG
-export compute_minors, detmpoly, change_ringvar_mod, MPolyBuild
-
+export compute_minors, detmpoly, change_ringvar_mod, MPolyBuild, small_mid_point
 include("Cannytools.jl")
 
-function computeRM(
+function roadmap(
+    V::Ideal{P};                                            # input ideal
+    Q::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # base points with rational coefficients
+    C::Vector{Vector{P}}=Vector{Vector{P}}(),            # query points with rational coefficients
+    v::Int=0,                                               # verbosity level
+    checks::Bool=false                                      # perform checks (dimension, regularity, etc.)
+) where (P <: QQMPolyRingElem)
+    CQ = real_solutions(C, info_level=max(v-1,0), nr_thrds=Threads.nthreads())
+end
+
+function roadmap(
         V::Ideal{T} where T <: QQMPolyRingElem;                 # input ideal
         Q::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # base points with rational coefficients
         C::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # query points with rational coefficients
@@ -36,60 +45,62 @@ function computeRM(
     RM = Vector{Ideal{QQMPolyRingElem}}(undef,0)
     for q in Q
         ## Fq ##
-        if e > 0
-            hFq = change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], A.S[e+1:end])
-            Fq = Ideal(hFq)
-        else
-            Fq = V
-        end
+        Fq = e > 0 ? Ideal(change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], A.S[e+1:end])) : V
         # Genericity assumption (can be checked)
-        Fq.dim = V.dim - e
+        if checks
+            @assert(dimension(Fq) == V.dim - e, "Non-generic polar variety")
+        else
+            Fq.dim = V.dim - e
+        end
 
-        if V.dim - e <= 1
+        # Terminal case (dim <=1)
+        if Fq.dim <= 1
             curve = change_ringvar(Fq.gens, A.S)
             push!(RM, Ideal(vcat(curve, [fixvarias[j] - q[j] for j in 1:e])))
+            continue
+        end
+
+        ## sing(Fq) ##
+        if checks
+            v>0 && println("Compute first the singular points")
+            singFq = computepolar(0, Fq, v=max(v-1,0))
+            @assert(isempty(real_solutions(singFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads())), "Non-emtpy real sing locus!")
+        end
+
+        ## K(pi_1,Fq) ##
+        v>0 && println("First critical points")
+        K1Fq = computepolar(1, Fq, v=max(v-1,0))
+        K1Fq = real_solutions(K1Fq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
+
+        ## K(pi_2, Fq) ##
+        v>0 && println("Second critical points")
+        K2Fq = computepolar(2, Fq, v=max(v-1,0))
+        if checks
+            @assert(isone(dimension(K2Fq)), "Non-generic polar variety")
         else
-            ## sing(Fq) ##
-            if checks
-                v>0 && println("Compute first the singular points")
-                singFq = computepolar(0, Fq, v=max(v-1,0))
-                @assert(isempty(real_solutions(singFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads())), "Non-emtpy real sing locus!")
-            end
-
-            ## K(pi_1,Fq) ##
-            v>0 && println("First critical points")
-            K1Fq = computepolar(1, Fq, v=max(v-1,0))
-            K1Fq = real_solutions(K1Fq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
-
-            ## K(pi_2, Fq) ##
-            v>0 && println("Second critical points")
-            K2Fq = computepolar(2, Fq, v=max(v-1,0))
-            if checks
-                @assert(isone(dimension(K2Fq)), "Non-generic polar variety")
-            end
             K2Fq.dim = 1
-            polar = change_ringvar(K2Fq.gens, A.S)
-            push!(RM, Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
+        end
+        polar = change_ringvar(K2Fq.gens, A.S)
+        push!(RM, Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
 
-            ## Points with vertical tg in K(pi_2, Fq) ##
-            v>0 && println("Vertical tg points")
-            K1WmFq = computepolar(2, K2Fq, dimproj=0, v=max(v-1,0))
-            K1WmFq = real_solutions(K1WmFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
+        ## Points with vertical tg in K(pi_2, Fq) ##
+        v>0 && println("Vertical tg points")
+        K1WmFq = computepolar(2, K2Fq, dimproj=0, v=max(v-1,0))
+        K1WmFq = real_solutions(K1WmFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
 
-            ## New base points ##
-            K1W = vcat(K1Fq, K1WmFq)
-            K1WRat = MidRationalPoints(getindex(K1W, 1))
-            # Heuristic to be proven
-            #K1WRat = K1WRat[2:end-1]
-            ##########
-            Cq = [c for c in C if c[1:e]==q]
-            append!(K1WRat, getindex.(Cq, e+1)) |> sort!
-            newQ = [ vcat(q, [kv]) for kv in K1WRat ]
+        ## New base points ##
+        K1W = vcat(K1Fq, K1WmFq)
+        K1WRat = MidRationalPoints(getindex(K1W, 1))
+        # Heuristic to be proven
+        #K1WRat = K1WRat[2:end-1]
+        ##########
+        Cq = [c for c in C if c[1:e]==q]
+        append!(K1WRat, getindex.(Cq, e+1)) |> sort!
+        newQ = [ vcat(q, [kv]) for kv in K1WRat ]
 
-            if !isempty(newQ)
-                RMFq = computeRM(V, Q=newQ, C=Cq)
-                append!(RM, RMFq)
-            end
+        if !isempty(newQ)
+            RMFq = roadmap(V, Q=newQ, C=Cq)
+            append!(RM, RMFq)
         end
     end
 
