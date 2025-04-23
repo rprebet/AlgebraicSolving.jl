@@ -4,7 +4,7 @@
 #using AlgebraicSolving
 #using Nemo
 
-export roadmap, computepolar
+export roadmap, computepolar, MidRationalPoints
 include("Cannytools.jl")
 
 function roadmap(
@@ -22,9 +22,6 @@ function roadmap(
     end
     # Some preprocessing
     V.dim == -1 && dimension(V)
-    println(Q)
-    println(C)
-    println()
     isempty(Q) && push!(Q,[])
     # Base points
     e = length(first(Q))
@@ -50,18 +47,19 @@ function roadmap(
 
         ## sing(Fq) ##
         if checks
-            v>0 && println("Compute first the singular points")
+            v>0 && println("Check real quasi-smoothness")
             singFq = computepolar(0, Fq, v=max(v-1,0))
-            @assert(isempty(real_solutions(singFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads())), "Non-emtpy real sing locus!")
+            @assert(isempty(real_solutions(singFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads())),
+                    "Non-empty real sing locus!")
         end
 
         ## K(pi_1,Fq) ##
-        v>0 && println("First critical points")
+        v>0 && println("V-critical points")
         K1Fq = computepolar(1, Fq, v=max(v-1,0))
         K1Fq = real_solutions(K1Fq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
 
         ## K(pi_2, Fq) ##
-        v>0 && println("Second critical points")
+        v>0 && println("Polar variety")
         K2Fq = computepolar(2, Fq, v=max(v-1,0))
         if checks
             @assert(isone(dimension(K2Fq)), "Non-generic polar variety")
@@ -72,20 +70,20 @@ function roadmap(
         push!(RM, Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
 
         ## Points with vertical tg in K(pi_2, Fq) ##
-        v>0 && println("Vertical tg points")
+        v>0 && println("W-critical points with vertical tangent")
         K1WmFq = computepolar(2, K2Fq, dimproj=0, v=max(v-1,0))
         K1WmFq = real_solutions(K1WmFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
 
-        ## New base points ##
+        ## New base and query points ##
+        Cq = isempty(q) ? C : [ c[2:end] for c in C if c[1] == q[e]]
         K1W = vcat(K1Fq, K1WmFq)
-        K1WRat = MidRationalPoints(getindex(K1W, 1))
-        # Heuristic to be proven
-        #K1WRat = K1WRat[2:end-1]
+        # Heuristic to be proven (Reeb's th)
+        #K1W = K1W[2:end-1]
         ##########
-        Cq = [c for c in C if c[1:e]==q]
-        append!(K1WRat, unique(getindex.(Cq, e+1))) |> sort!
-        newQ = [ vcat(q, [kv]) for kv in K1WRat ]
+        K1WRat = MidRationalPoints(first.(K1W), unique(first.(Cq)))
+        newQ = vcat.(Ref(q), K1WRat)
 
+        # Recursively compute roadmap of possible fibers
         if !isempty(newQ)
             RMFq = roadmap(V, Q=newQ, C=Cq)
             append!(RM, RMFq)
@@ -96,13 +94,12 @@ function roadmap(
 end
 
 function roadmap(
-    V::Ideal{P},                                            # input ideal
-    C::Ideal{P};                                            # query points as an ideal
-    v::Int=0,                                               # verbosity level
-    checks::Bool=false                                      # perform checks (dimension, regularity, etc.)
+    V::Ideal{P},                # input ideal
+    C::Ideal{P};                # ideal defining query points
+    v::Int=0,                   # verbosity level
+    checks::Bool=false          # perform checks (dimension, regularity, etc.)
 ) where (P <: QQMPolyRingElem)
-    println("plop")
-    @assert(parent(V)==parent(C), "Equations for variety and query points must be in the same ring")
+    @assert(parent(V)==parent(C), "Equations for variety and query points must live the same ring")
     CQ = real_solutions(C, info_level=max(v-1,0), nr_thrds=Threads.nthreads())
     return roadmap(V, C=CQ, v=v, checks=checks)
 end

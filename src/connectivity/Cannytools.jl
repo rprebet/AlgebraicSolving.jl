@@ -105,6 +105,7 @@ function MidRationalPoints(S::Vector{Vector{T}}, Q::Vector{T} = T[]) where {T <:
         @assert ri < li1 "Intervals are not disjoint."
         inserted = false
         while qidx <= qlen && Q1[qidx] < li1
+            @assert(Q1[qidx] > ri, "A query point is singular")
             push!(ratioP, Q1[qidx])
             inserted = true
             qidx += 1
