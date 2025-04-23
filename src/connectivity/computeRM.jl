@@ -4,9 +4,7 @@
 #using AlgebraicSolving
 #using Nemo
 
-export roadmap, computepolarproj, computepolarphi, computepolar
-# DEBUG
-export compute_minors, detmpoly, change_ringvar_mod, MPolyBuild, small_mid_point
+export roadmap, computepolar
 include("Cannytools.jl")
 
 function roadmap(
