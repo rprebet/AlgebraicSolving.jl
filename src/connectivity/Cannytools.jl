@@ -3,13 +3,14 @@ function computepolar(
         j::Int,                 # j-th first coordinate images of phi
         V::Ideal{P};            # input ideal
         phi::Vector{P} = P[],   # polynomial map in consideration (completed by sufficiently many projections)
+        dim = -1,                # specify dimension of V
         dimproj = j-1,          # maximum dimension of tangent space of phi
         v=0,                    # verbosity level
     ) where (P <: MPolyRingElem)
-    V.dim == -1 && dimension(V)
+    dim == -1 && V.dim == -1 && dimension(V)
     R = parent(V)
     n = nvars(R)
-    c = n - V.dim
+    c = n - max(dim, V.dim)
     nphi = length(phi)
 
     JW = transpose([ derivative(f, k) for k=max(j+1-nphi,0):n, f in vcat(V.gens, phi[1:min(j,nphi)])])

@@ -25,13 +25,12 @@ function roadmap(
     isempty(Q) && push!(Q,[])
     # Base points
     e = length(first(Q))
-    fixvarias = varias[1:e]
 
     RM = Vector{Ideal{QQMPolyRingElem}}(undef,0)
     for q in Q
         ## Fq ##
-        Fq = e > 0 ? Ideal(change_ringvar([evaluate(h, fixvarias, q) for h in V.gens], A.S[e+1:end])) : V
         # Genericity assumption (can be checked)
+        Fq = fbr(V, q)
         if checks
             @assert(dimension(Fq) == V.dim - e, "Non-generic polar variety")
         else
@@ -40,47 +39,46 @@ function roadmap(
 
         # Terminal case (dim <=1)
         if Fq.dim <= 1
-            curve = change_ringvar(Fq.gens, A.S)
-            push!(RM, Ideal(vcat(curve, [fixvarias[j] - q[j] for j in 1:e])))
+            push!(RM, Fq)
             continue
         end
 
         ## sing(Fq) ##
         if checks
             v>0 && println("Check real quasi-smoothness")
-            singFq = computepolar(0, Fq, v=max(v-1,0))
+            singFq = fbr(computepolar(e, V, v=max(v-1,0)), q)
             @assert(isempty(real_solutions(singFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads())),
                     "Non-empty real sing locus!")
         end
 
         ## K(pi_1,Fq) ##
         v>0 && println("V-critical points")
-        K1Fq = computepolar(1, Fq, v=max(v-1,0))
+        K1Fq = fbr(computepolar(e+1, V, v=max(v-1,0)), q)
         K1Fq = real_solutions(K1Fq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
 
         ## K(pi_2, Fq) ##
         v>0 && println("Polar variety")
-        K2Fq = computepolar(2, Fq, v=max(v-1,0))
+        K2Fqmins = computepolar(e+2, V, v=max(v-1,0))
+        K2Fq = fbr(K2Fqmins, q)
         if checks
             @assert(isone(dimension(K2Fq)), "Non-generic polar variety")
         else
             K2Fq.dim = 1
         end
-        polar = change_ringvar(K2Fq.gens, A.S)
-        push!(RM, Ideal(vcat(polar, [fixvarias[j] - q[j] for j in 1:e])))
+        push!(RM, K2Fq)
 
         ## Points with vertical tg in K(pi_2, Fq) ##
         v>0 && println("W-critical points with vertical tangent")
-        K1WmFq = computepolar(2, K2Fq, dimproj=0, v=max(v-1,0))
+        K1WmFq = fbr(computepolar(e+2, K2Fqmins, dim=e+1, dimproj=e+0, v=max(v-1,0)), q)
         K1WmFq = real_solutions(K1WmFq, info_level=max(v-1,0), nr_thrds=Threads.nthreads(), interval=true)
 
         ## New base and query points ##
-        Cq = isempty(q) ? C : [ c[2:end] for c in C if c[1] == q[e]]
+        Cq = isempty(q) ? C : [ c for c in C if c[e] == q[e]]
         K1W = vcat(K1Fq, K1WmFq)
         # Heuristic to be proven (Reeb's th)
         #K1W = K1W[2:end-1]
         ##########
-        K1WRat = MidRationalPoints(first.(K1W), unique(first.(Cq)))
+        K1WRat = MidRationalPoints(getindex.(K1W,e+1), unique(getindex.(Cq, e+1)))
         newQ = vcat.(Ref(q), K1WRat)
 
         # Recursively compute roadmap of possible fibers
@@ -102,6 +100,11 @@ function roadmap(
     @assert(parent(V)==parent(C), "Equations for variety and query points must live the same ring")
     CQ = real_solutions(C, info_level=max(v-1,0), nr_thrds=Threads.nthreads())
     return roadmap(V, C=CQ, v=v, checks=checks)
+end
+
+function fbr(I::Ideal{P} where P <: QQMPolyRingElem, Q::Vector{QQFieldElem})
+    vars = gens(parent(I))
+    return Ideal(vcat(I.gens, [vars[i] - Q[i] for i in 1:min(length(vars),length(Q))]))
 end
 
 #=
