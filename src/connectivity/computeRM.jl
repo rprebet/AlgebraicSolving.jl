@@ -10,16 +10,6 @@ export compute_minors, detmpoly, change_ringvar_mod, MPolyBuild, small_mid_point
 include("Cannytools.jl")
 
 function roadmap(
-    V::Ideal{P};                                            # input ideal
-    Q::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # base points with rational coefficients
-    C::Vector{Vector{P}}=Vector{Vector{P}}(),            # query points with rational coefficients
-    v::Int=0,                                               # verbosity level
-    checks::Bool=false                                      # perform checks (dimension, regularity, etc.)
-) where (P <: QQMPolyRingElem)
-    CQ = real_solutions(C, info_level=max(v-1,0), nr_thrds=Threads.nthreads())
-end
-
-function roadmap(
         V::Ideal{T} where T <: QQMPolyRingElem;                 # input ideal
         Q::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # base points with rational coefficients
         C::Vector{Vector{QQFieldElem}}=Vector{QQFieldElem}[],   # query points with rational coefficients
@@ -95,7 +85,7 @@ function roadmap(
         #K1WRat = K1WRat[2:end-1]
         ##########
         Cq = [c for c in C if c[1:e]==q]
-        append!(K1WRat, getindex.(Cq, e+1)) |> sort!
+        append!(K1WRat, unique(getindex.(Cq, e+1))) |> sort!
         newQ = [ vcat(q, [kv]) for kv in K1WRat ]
 
         if !isempty(newQ)
@@ -105,6 +95,18 @@ function roadmap(
     end
 
     return RM
+end
+
+function roadmap(
+    V::Ideal{P},                                            # input ideal
+    C::Ideal{P};                                            # query points as an ideal
+    v::Int=0,                                               # verbosity level
+    checks::Bool=false                                      # perform checks (dimension, regularity, etc.)
+) where (P <: QQMPolyRingElem)
+    println("plop")
+    @assert(parent(V)==parent(C), "Equations for variety and query points must be in the same ring")
+    CQ = real_solutions(C, info_level=max(v-1,0), nr_thrds=Threads.nthreads())
+    return roadmap(V, C=CQ, v=v, checks=checks)
 end
 
 #=

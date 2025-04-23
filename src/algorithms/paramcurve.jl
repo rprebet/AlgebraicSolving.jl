@@ -1,4 +1,4 @@
-export rational_curve_parametrization
+export rational_curve_parametrization, add_genvars
 
 @doc Markdown.doc"""
     rational_curve_parametrization(I::Ideal{T} where T <: MPolyRingElem, <keyword arguments>)
