@@ -4,7 +4,7 @@
 #using AlgebraicSolving
 #using Nemo
 
-export roadmap, computepolar, MidRationalPoints, fbr
+export roadmap, computepolar, MidRationalPoints, fbr, all_eqs, all_base_pts
 include("Cannytools.jl")
 
 function roadmap(
@@ -25,7 +25,6 @@ function roadmap(
     # Base points
     e = length(q)
 
-    RM = Vector{Tuple{Vector{QQMPolyRingElem}, Vector{QQFieldElem}}}(undef, 0)
     ## Fq ##
     # Genericity assumption (can be checked)
     if checks
@@ -34,8 +33,7 @@ function roadmap(
 
     # Terminal case (dim <=1)
     if V.dim - e <= 1
-        push!(RM, ([], q))
-        return RM
+        return RMnode([], q, RMnode[])
     end
 
     ## sing(Fq) ##
@@ -60,7 +58,7 @@ function roadmap(
     else
         K2Fq.dim = e + 1
     end
-    push!(RM, (K2Fqmins, q))
+    RM = RMnode(K2Fqmins, q, RMnode[])
 
     ## Points with vertical tg in K(pi_2, Fq) ##
     v>0 && println("W-critical points with vertical tangent")
@@ -80,14 +78,16 @@ function roadmap(
     if !isempty(newQ)
         for newq in newQ
             RMFq = roadmap(V, q=newq, C=Cq)
-            append!(RM, RMFq)
+            push!(RM.children, RMFq)
         end
     end
 
-    return RM
+    if e == 0
+        return Roadmap(V, RM)
+    else
+        return RM
+    end
 end
-
-
 
 function roadmap(
     V::Ideal{P},                # input ideal
@@ -110,6 +110,54 @@ end
 function fbr(I::Ideal{P} where P <: QQMPolyRingElem, Q::Vector{QQFieldElem})
     return fbr(I.gens, Q)
 end
+
+mutable struct RMnode
+    polar_eqs::Vector{QQMPolyRingElem}
+    base_pt::Vector{QQFieldElem}
+    children::Vector{RMnode}
+end
+
+mutable struct Roadmap
+    initial_ideal::Ideal{QQMPolyRingElem}
+    root::RMnode
+end
+
+function all_eqs(RM::Roadmap)
+    function all_eqs_rec(RMn::RMnode)
+        eqs = [fbr(vcat(RM.initial_ideal.gens, RMn.polar_eqs), RMn.base_pt)]
+        for child in RMn.children
+            append!(eqs, all_eqs_rec(child))
+        end
+        return eqs
+    end
+    return all_eqs_rec(RM.root)
+end
+
+function all_base_pts(RM::Roadmap)
+    function all_base_pts_rec(RMn::RMnode)
+        eqs = [RMn.base_pt]
+        for child in RMn.children
+            append!(eqs, all_base_pts_rec(child))
+        end
+        return eqs
+    end
+    return all_base_pts_rec(RM.root)
+end
+
+function nb_nodes(RM::Roadmap)
+    function nb_nodes_rec(RMn::RMnode)
+        nb = 1
+        for child in RMn.children
+            nb += nb_nodes_rec(child)
+        end
+        return nb
+    end
+    return nb_nodes_rec(RM.root)
+end
+
+Base.show(io::IO, RM::Roadmap) = print(io, all_base_pts(RM))
+Base.getindex(RM::Roadmap, idx::Union{Int, UnitRange}) = all_eqs(RM)[idx]
+Base.lastindex(RM::Roadmap) = nb_nodes(RM)
 
 #=
 ## Test ##

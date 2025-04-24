@@ -4,6 +4,7 @@ authors = ["ederc <ederc@mathematik.uni-kl.de>", "Mohab Safey El Din <Mohab.Safe
 version = "0.8.3"
 
 [deps]
+AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
