@@ -3,21 +3,25 @@ function computepolar(
         j::Int,                 # j-th first coordinate images of phi
         V::Ideal{P};            # input ideal
         phi::Vector{P} = P[],   # polynomial map in consideration (completed by sufficiently many projections)
-        dim = -1,                # specify dimension of V
         dimproj = j-1,          # maximum dimension of tangent space of phi
         v=0,                    # verbosity level
+        only_mins = false          # return only minors without eqns of V
     ) where (P <: MPolyRingElem)
-    dim == -1 && V.dim == -1 && dimension(V)
+    V.dim == -1 && dimension(V)
     R = parent(V)
     n = nvars(R)
-    c = n - max(dim, V.dim)
+    c = n - V.dim
     nphi = length(phi)
 
     JW = transpose([ derivative(f, k) for k=max(j+1-nphi,0):n, f in vcat(V.gens, phi[1:min(j,nphi)])])
     sizeminors = c + min(nphi,j) + min(dimproj,j-1) - (j-1)
     minors = compute_minors(sizeminors, JW, R)
 
-    return Ideal(vcat(V.gens, minors))
+    if only_mins
+        return minors
+    else
+        return vcat(V.gens, minors)
+    end
 end
 
 function compute_minors(p, A, R)
