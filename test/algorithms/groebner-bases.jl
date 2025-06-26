@@ -16,7 +16,7 @@
          z^4 + 38*z^3 + 95*z^2 + 95*z
         ]
     @test G == H
-    
+
     I = Ideal([x+2*y+2*z-1, x^2+2*y^2+2*z^2-x, 2*x*y+2*y*z-y])
     G = groebner_basis(I, eliminate=2, intersect=false)
     H = MPolyRingElem[
@@ -54,7 +54,7 @@
     I = Ideal([x+2*y+2*z-1, x^2+2*y^2+2*z^2-x, 2*x*y+2*y*z-y])
     G = eliminate(I, 2)
     H = MPolyRingElem[
-        84*z^4 - 40*z^3 + z^2 + z
+        84*z^4 - 38
     ]
     @test G == H
 end
