@@ -21,7 +21,7 @@ function roadmap(
         return [V.gens]
     end
     # Some preprocessing
-    V.dim == -1 && dimension(V)
+    isnothing(V.dim) && dimension(V)
     # Base points
     e = length(q)
 
