@@ -1,8 +1,11 @@
 @doc Markdown.doc"""
     rational_curve_parametrization(I::Ideal{T} where T <: MPolyRingElem, <keyword arguments>)
 
-Given an ideal `I` with solution set X being of dimension 1 over the complex numbers, return
-the rational curve parametrization of the one-dimensional irreducible components of X.
+Given a **radical** ideal `I` with solution set X being of dimension 1 over the complex numbers,
+return a rational curve parametrization of the one-dimensional irreducible components of X.
+
+In the output, the variables `x`,`y` of the parametrization correspond to the last two
+entries of the `vars` attribute, in that order.
 
 **Note**: At the moment only QQ is supported as ground field. If the dimension of the ideal
 is not one an ErrorException is thrown.
@@ -40,8 +43,9 @@ function rational_curve_parametrization(
         nr_thrds::Int=1,                                            # number of threads (msolve)
         check_gen::Bool = true                                      # perform genericity check
     )
-    info_level>0 && println("Compute ideal data and genericity check")
-    Itest = Ideal(change_base_ring.(Ref(GF(65521)), I.gens))
+    info_level>0 && println("Compute ideal data" * (check_gen ? " and genericity check" : ""))
+    lucky_prime = _generate_lucky_primes(I.gens, one(ZZ)<<30, one(ZZ)<<31-1, 1) |> first
+    Itest = Ideal(change_base_ring.(Ref(GF(lucky_prime)), I.gens))
     Itest.dim = I.dim
     dimension(Itest)
     if Itest.dim == -1
@@ -50,7 +54,7 @@ function rational_curve_parametrization(
         I.rat_param = RationalCurveParametrization(Symbol[], Vector{ZZRingElem}[], T(-1), T(-1), QQMPolyRingElem[])
         return I.rat_param
     end
-    @assert(Itest.dim==1, "I must be either empty or one-dimensional")
+    @assert(Itest.dim==1, "I must define a curve or an empty set")
     if nvars(parent(I)) == 1
         T, (x,y) = polynomial_ring(QQ, [:x,:y])
         I.dim = 1
@@ -66,22 +70,36 @@ function rational_curve_parametrization(
     R = parent(first(F))
     N = nvars(R)
     if check_gen let
-        local INEW = Ideal(change_base_ring.(Ref(GF(65521)), vcat(F, gens(R)[N-1]-rand(ZZ,-100:100))))
-        @assert(dimension(INEW)==0 && hilbert_degree(INEW) == DEG, "The curve is not in generic position")
+        val = [ZZ(), ZZ()]
+        # Bound on bifurcation set degree (e.g. Jelonek & Kurdyka, 2005)
+        bif_bound = ZZ(1) << ( N * floor(Int, log2(maximum(total_degree.(F)))) + 1 )
+        while any(is_divisible_by.(val, Ref(lucky_prime)))
+            val = rand(-bif_bound:bif_bound, 2)
+        end
+        for ivar in [N-1, N]
+            Fnew = vcat(F, val[1]*gens(R)[ivar] + val[2])
+            new_lucky_prime = _generate_lucky_primes(Fnew, one(ZZ)<<30, one(ZZ)<<31-1, 1) |> first
+            local INEW = Ideal(change_base_ring.(Ref(GF(new_lucky_prime)), Fnew))
+            @assert(dimension(INEW) == 0 && hilbert_degree(INEW) == DEG, "The curve is not in generic position")
+        end
     end end
 
     # Compute DEG+2 evaluations of x in the param (whose total deg is bounded by DEG)
-    PARAM  = Vector{Vector{QQPolyRingElem}}(undef,DEG+2)
-    _values = Vector{QQFieldElem}(undef,DEG+2)
+    PARAM  = Vector{Vector{QQPolyRingElem}}(undef, DEG+2)
+    _values = Vector{ZZRingElem}(undef, DEG+2)
     i = 1
     free_ind = collect(1:DEG+2)
     used_ind = zeros(Bool, DEG+2)
+    lc = nothing
     while length(free_ind) > 0
         if i > 2*(DEG+2)
-            error("Too many bad specializations: permute variables or use_lfs=true")
+            error("Too many bad specializations. Check radicality, else permute variables or use_lfs=true")
         end
-        # Evaluation of the generator
-        LFeval = Ideal.(_evalvar(F, N-1, QQ.(collect(i+j-1 for j in 1:length(free_ind)))))
+        # Evaluation of the generator at values x s.t. 0 <= |x|-i <= length(free_ind)/2
+        # plus one point at -(length(free_ind)+1)/2 if the length if odd.
+        # This reduces a bit the bitsize of the evaluation
+        curr_values = ZZ.([-(i-1+(length(free_ind)+1)÷2):-i;i:(i-1+length(free_ind)÷2)])
+        LFeval = Ideal.(_evalvar(F, N-1, curr_values))
         # Compute parametrization of each evaluation
         Lr = Vector{RationalParametrization}(undef, length(free_ind))
         for j in 1:length(free_ind)
@@ -90,12 +108,18 @@ function rational_curve_parametrization(
         end
         info_level>0 && println()
         for j in 1:length(free_ind)
-            # For lifting: the same variable must be chosen for the param
-            if  Lr[j].vars == [symbols(R)[1:N-2]; symbols(R)[N]]
-                lc = leading_coefficient(Lr[j].elim)
-                rr = [ p/lc for p in vcat(Lr[j].elim, Lr[j].denom, Lr[j].param) ]
+            # Specialization checks: same vars order, generic degree
+            if  Lr[j].vars == [symbols(R)[1:N-2]; symbols(R)[N]] && degree(Lr[j].elim) == DEG
+                if isnothing(lc)
+                    lc = leading_coefficient(Lr[j].elim)
+                    rr = [ p for p in vcat(Lr[j].elim, Lr[j].denom, Lr[j].param) ]
+                else
+                    # Adjust when the rat_param is multiplied by some constant factor
+                    fact = lc / leading_coefficient(Lr[j].elim)
+                    rr = [ p*fact for p in vcat(Lr[j].elim, Lr[j].denom, Lr[j].param) ]
+                end
                 PARAM[j] = rr
-                _values[j] = QQ(i+j-1)
+                _values[j] = curr_values[j]
                 used_ind[j] = true
             else
                 info_level>0 && println("bad specialization: ", i+j-1)
@@ -115,8 +139,11 @@ function rational_curve_parametrization(
         info_level>0 && print("Interpolate parametrizations: $count/$N\r")
         COEFFS = Vector{QQPolyRingElem}(undef, DEG+1)
         for deg in 0:DEG
-            _evals = [coeff(PARAM[i][count], deg) for i in 1:length(PARAM)]
-            COEFFS[deg+1] = interpolate(A, _values, _evals)
+            _evals = [coeff(PARAM[i][count], deg) for i in eachindex(PARAM)]
+            # Remove denominators for faster interpolation with FLINT
+            den = foldl(lcm, denominator.(_evals))
+            scaled_evals = [ZZ(_evals[i] * den) for i in eachindex(_evals)]
+            COEFFS[deg+1] = interpolate(A, _values, scaled_evals) / (lc*den)
         end
         ctx = MPolyBuildCtx(T)
         for (i, c) in enumerate(COEFFS)
@@ -143,7 +170,6 @@ function _add_genvars(
     ngenvars::Int,
     cfs_lfs::Vector{Vector{ZZRingElem}} = Vector{ZZRingElem}[]
 )
-
     if length(cfs_lfs) > ngenvars
         error("Too many linear forms provided ($(length(cfs_lfs))>$(ngenvars))")
     end
@@ -204,4 +230,38 @@ function _evalvar(
         end
     end
     return LFeval
+end
+
+# Generate N primes > start that do not divide any numerator/denominator
+# of any coefficient in polynomials from LP
+function _generate_lucky_primes(
+    LF::Vector{P} where P<:MPolyRingElem,
+    low::ZZRingElem,
+    up::ZZRingElem,
+    N::Int64
+    )
+    # Avoid repetitive enumeration and redundant divisibility check
+    CF = ZZRingElem[]
+    for f in LF, c in coefficients(f), part in (numerator(c), denominator(c))
+        if !isone(part)
+            push!(CF, part)
+        end
+    end
+    sort!(CF, rev=true)
+    unique!(CF)
+
+    # Test primes
+    Lprim = ZZRingElem[]
+    while length(Lprim) < N
+        cur_prim = next_prime(rand(low:up))
+        is_lucky = !(cur_prim in Lprim)
+        i = firstindex(CF)
+        # Exploit decreasing order of CF
+        while is_lucky && i <= lastindex(CF) && CF[i] > cur_prim
+            is_lucky = !is_divisible_by(CF[i], cur_prim)
+            i += 1
+        end
+        is_lucky && push!(Lprim, cur_prim)
+    end
+    return Lprim
 end
