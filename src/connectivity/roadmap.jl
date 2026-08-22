@@ -282,6 +282,7 @@ function check_genericity(
     base_pt::BasePoint{P},
     L_test::Vector{P},
 ) where {P <: QQMPolyRingElem}
+    @show L_test
     lucky_prime = first(_generate_lucky_primes(I.gens, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
     Kp = GF(lucky_prime)
     Ip = Ideal(change_base_ring.(Ref(Kp), I.gens))
@@ -327,7 +328,76 @@ function check_genericity(
         return false
     end
 
+    # Lp_[e+1] must be separating on K1Fq
+    K1Fq = Ideal(vcat(K1Fq_pol, fib_p))
+    DEG = hilbert_degree(K1Fq)
+
+    # If there are no points, any linear form is trivially separating
+    if DEG > 0
+        Rp = parent(K1Fq.gens[1])
+        n_v = nvars(Rp)
+
+        # Introduce the new variable and relation
+        K1Fq_ext = _add_linvar(K1Fq.gens, Lp[e+1])
+        # Eliminate the original n_v variables (leaving only _ZZ1)
+        K1Fq_ext_elim = Ideal(eliminate(K1Fq_ext, n_v))
+        K1Fq_ext_elim.gb[0] = K1Fq_ext_elim.gens
+        # Check separation: if degree drops, points have collapsed on each other
+        @show K1Fq_ext_elim.gens
+        @show DEG
+        if hilbert_degree(K1Fq_ext_elim) != DEG
+            return false
+        end
+    end
+    println("KW")
+    # Lp_[e+1] must be separating on K1Fq
+    K1Fq = Ideal(vcat(K1Wm, fib_p))
+    DEG = hilbert_degree(K1Fq)
+
+    # If there are no points, any linear form is trivially separating
+    if DEG > 0
+        Rp = parent(K1Fq.gens[1])
+        n_v = nvars(Rp)
+
+        # Introduce the new variable and relation
+        K1Fq_ext = _add_linvar(K1Fq.gens, Lp[e+1])
+        # Eliminate the original n_v variables (leaving only _ZZ1)
+        K1Fq_ext_elim = Ideal(eliminate(K1Fq_ext, n_v))
+        K1Fq_ext_elim.gb[0] = K1Fq_ext_elim.gens
+        # Check separation: if degree drops, points have collapsed on each other
+        @show K1Fq_ext_elim.gens
+        if hilbert_degree(K1Fq_ext_elim) != DEG
+            @show DEG
+            return false
+        end
+    end
+
     return true
+end
+
+function _add_linvar(F, f)
+    R = parent(first(F))
+    K, n = base_ring(R), nvars(R)
+
+    newS = vcat(symbols(R), :_ZZ1)
+    R_ext, all_vars = polynomial_ring(K, newS)
+    F_ext = Vector{MPolyRingElem}(undef, length(F))
+
+    ctx = MPolyBuildCtx(R_ext)
+    new_e = zeros(Int, n + 1) # Pre-allocated buffer
+    for i in eachindex(F)
+        for (e, c) in zip(exponent_vectors(F[i]), coefficients(F[i]))
+            new_e[1:n] .= e
+            push_term!(ctx, c, new_e)
+        end
+        F_ext[i] = finish(ctx)
+    end
+
+    cfs = [-coeff(f, x) for x in gens(R)]
+    push!(cfs, one(K))
+    push!(F_ext, transpose(cfs) * all_vars)
+
+    return Ideal(F_ext)
 end
 
 # Generate N random primes between low and up
