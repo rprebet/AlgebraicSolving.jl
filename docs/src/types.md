@@ -17,8 +17,11 @@ Pages = ["types.md"]
 
 ## Introduction
 
-AlgebraicSolving handles ideals in multivariate polynomial rings over a prime 
-field of characteristic $0$ or $p$ where $p$ is a prime number $<2^{31}$.
+AlgebraicSolving implements functionality for ideals in multivariate polynomial rings with coefficients in 
+
+- a finite field of cardinality $p$ where $p$ is a prime number $<2^{31}$,
+- the field of rational numbers,
+- the field of rational fractions of a polynomial ring with base field the rational numbers.
 
 ## Polynomial Rings
 
@@ -38,6 +41,13 @@ over finite fields:
 using AlgebraicSolving
 R, (x,y,z) = polynomial_ring(GF(101), ["x", "y", "z"], internal_ordering=:degrevlex)
 ```
+In order to define polynomial rings over rational fraction fields one can proceed as follows:
+```@repl
+using AlgebraicSolving
+R, (t, ) = polynomial_ring(QQ, ["t"])
+K = fraction_field(R)
+R, (x,y,z) = polynomial_ring(K, ["x", "y", "z"])
+```
 
 ## Ideals
 
@@ -51,3 +61,12 @@ R, (x,y,z) = polynomial_ring(QQ, ["x", "y", "z"], internal_ordering=:degrevlex)
 I = Ideal([x+y+1, y*z^2-13*y^2])
 ```
 
+Ideals in polynomial rings over rational fraction fields are implemented using 
+the special type `ParametricIdeal`:
+```@repl
+using AlgebraicSolving
+R, (t, ) = polynomial_ring(QQ, ["t"])
+K = fraction_field(R)
+R, (x,y,z) = polynomial_ring(K, ["x", "y", "z"])
+I = ParametricIdeal([t*x^2 - 1, t*x*y - z + 4])
+```
