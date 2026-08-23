@@ -18,8 +18,9 @@ Pages = ["groebner-bases.md"]
 ## Introduction
 
 AlgebraicSolving allows to compute Gröbner bases for input generators over prime
-fields of characteristic smaller $2^{31}$ or over the rationals w.r.t. the degree
-reverse lexicographical monomial order.
+fields of characteristic smaller $2^{31}$, over the rationals w.r.t. the degree
+reverse lexicographical monomial order and over fields of rational fractions of
+polynomial rings w.r.t. the degree reverse lexicographical monomial order.
 
 At the moment different variants of Faugère's F4 Algorithm are implemented as
 well as a signature based algorithm to compute Gröbner bases.
@@ -38,6 +39,16 @@ well as a signature based algorithm to compute Gröbner bases.
         complete_reduction::Bool=true,
         info_level::Int=0
         )
+```
+
+```@docs
+	groebner_basis(
+		I::ParametricIdeal{K};
+		retry::Int=10,
+		nr_thrds::Int=1,
+		worker_pool::AbstractWorkerPool=default_worker_pool(),
+		show_progress::Bool=false
+		)::Vector{Generic.MPoly{FracFieldElem{QQMPolyRingElem}}} where {K<:FracFieldElem}
 ```
 
 The engine supports the elimination of one block of variables considering the
@@ -66,4 +77,25 @@ To compute signature Gröbner bases use
 
 ```@docs
     sig_groebner_basis(sys::Vector{T}; info_level::Int = 0, degbound::Int = 0, mod_ord::Symbol=:POT) where {T <: MPolyRingElem}
+```
+
+AlgebraicSolving also allows the computation of multiplication
+matrices of polynomials modulo polynomial ideals. For a polynomial
+ideal $I$ in a polynomial ring $R$ and a polynomial $g \in R$, this is
+a matrix representing the linear map sending an element $f\in R / I$
+to $gf \in R/I$.
+
+```@docs
+	multiplication_matrix(gb::Vector{T}, b::Vector{T}, g::T)::MatElem where {T<:MPolyRingElem}
+```
+
+```@docs
+	multiplication_matrix(
+		I::ParametricIdeal{K},
+		g::MPoly{K};
+		retry::Int=10,
+		nr_thrds::Int=1,
+		worker_pool::AbstractWorkerPool=default_worker_pool(),
+		show_progress::Bool=false
+		)::MatSpaceElem{K} where {K<:FracFieldElem}
 ```
