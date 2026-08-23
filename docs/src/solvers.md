@@ -17,8 +17,12 @@ Pages = ["solvers.md"]
 
 ## Introduction
 
-AlgebraicSolving allows to solve systems for input generators over finite
-fields of characteristic smaller $2^{31}$ and over the rationals.
+AlgebraicSolving allows to compute solutions of polynomial systems
+with input generators over the rationals.  In addition, the
+computation of rational parametrizations of solution sets is
+implemented for polynomial systems with input generators over finite
+fields of order $p$ where $p$ is a prime number $<2^{31}$, over the
+rationals and over fraction fields of polynomial rings.
 
 The underlying engine is provided by msolve.
 
