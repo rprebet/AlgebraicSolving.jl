@@ -33,7 +33,16 @@ The underlying engine is provided by msolve.
         la_option::Int=2,
         info_level::Int=0,
         precision::Int=32
+
         )
+		
+	rational_parametrization(
+		I::ParametricIdeal{K} where K<:FracFieldElem;
+		retry::Int=10,
+		nr_thrds::Int=1,
+		worker_pool::AbstractWorkerPool=default_worker_pool(),
+		show_progress::Bool=false
+		)
 
     real_solutions(
         I::Ideal{T} where T <: MPolyRingElem;
