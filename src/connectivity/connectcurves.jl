@@ -38,7 +38,7 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
     p_inter = Dict{Set{Int}, RationalParametrization}()
     for i in 1:N
          v > 0 && println("Compute graph of curve number $i/$N...")
-        p_I = rational_curve_parametrization(curves[i], cfs_lfs=cfs_lfs)
+        p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs)
 
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
         C_i = Dict{Int, RationalParametrization}( j => p_inter[Set((i,j))] for j in 1:i-1)
@@ -129,9 +129,9 @@ function curve_graph(I::Ideal{P}, args...; generic=true, outf=true, v=0, kwargs.
         make_vec(i) = [j <= n ? ZZRingElem(rand(-100:100)) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
         lfs = make_vec.(1:3)
         u_lfs = lfs[2][1:end-3] # for zero-dim param of control pts
-        p_I = rational_curve_parametrization(I, cfs_lfs = lfs)
+        p_I = curve_rational_parametrization(I, cfs_lfs = lfs, check_cfs=false)
     else
-        p_I = rational_curve_parametrization(I)
+        p_I = curve_rational_parametrization(I)
     end
 
     # 2. Process Control Ideals (C) if provided
@@ -276,7 +276,7 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
             for k in 1:length(PCside.left.points)
                 xval = xcrit[i][j][1]
                 yval = sum(PCside.left.points[k]) / 2
-                push!(Vert, (xval, yval))
+                push!(Vert, (yval, xval)) # coordinates are reversed in curve_param
                 push!(Corr[i][j].left, length(Vert))
             end
         end
@@ -286,14 +286,14 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
             for k in 1:length(PCside.right.points)
                 xval = (xcrit[i][j][2] + xcrit[i2][j2][1]) / 2
                 yval = sum(PCside.right.points[k] + I2L_points[k]) / 4
-                push!(Vert, (xval, yval))
+                push!(Vert, (yval, xval))
                 push!(Corr[i][j].right, length(Vert))
             end
         else
             for k in 1:length(PCside.right.points)
                 xval = xcrit[i][j][2]
                 yval = sum(PCside.right.points[k]) / 2
-                push!(Vert, (xval, yval))
+                push!(Vert, (yval, xval))
                 push!(Corr[i][j].right, length(Vert))
             end
         end
@@ -301,7 +301,7 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
         # 3. Below the critical point
         for k in 1:ymincrit-1
             yval = sum(PCside.left.points[k] + PCside.right.points[k]) / 4
-            push!(Vert, (xcmid, yval))
+            push!(Vert, (yval, xcmid))
             push!(Corr[i][j].bottom, length(Vert))
             push!(Edg, (Corr[i][j].left[k], length(Vert)))
             push!(Edg, (length(Vert), Corr[i][j].right[k]))
@@ -315,7 +315,7 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
             push!(Edg, (Corr[i][j].left[nI_left[2]], Corr[i][j].right[nI_right[1]]))
             push!(Lapp_nodes, (i, j))
         else
-            push!(Vert, (xcmid, ycmid))
+            push!(Vert, (ycmid, xcmid))
             push!(Corr[i][j].center, length(Vert))
 
             for k in nI_left; push!(Edg, (Corr[i][j].left[k], length(Vert))); end
@@ -329,12 +329,14 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
         # 5. Above the critical point
         for k = (length(PCside.left.points) - length(nI_left) - ymincrit + 1):-1:1
             yval = sum(PCside.left.points[end-k+1] + PCside.right.points[end-k+1]) / 4
-            push!(Vert, (xcmid, yval))
+            push!(Vert, (yval, xcmid))
             push!(Corr[i][j].top, length(Vert))
             push!(Edg, (Corr[i][j].left[end-k+1], length(Vert)))
             push!(Edg, (length(Vert), Corr[i][j].right[end-k+1]))
         end
     end
+
+
 
     if outf
         Vert = [ (Float64(x), Float64(y)) for (x,y) in Vert ]
