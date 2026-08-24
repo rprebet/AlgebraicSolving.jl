@@ -98,7 +98,7 @@ One can perform different operations on such strutures.
 ```
 
 ```@docs
-    group_by_components(
+    group_by_component(
         G::CurveGraph
     )
 ```
