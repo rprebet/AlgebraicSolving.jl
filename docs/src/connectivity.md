@@ -82,7 +82,7 @@ The underlying engines are
         outf=true,
         v=0,
         kwargs...
-    ) where (P <: MPolyRingElem)
+    ) where {P <: MPolyRingElem}
 ```
 
 ## Computing with curve graphs

@@ -253,7 +253,7 @@ end
 
 ### Core Builders
 
-The functions [build_graph_data](@ref) allow to compute such `GraphPlotData` from `CurveGraph{T}` objects. These former objects can be plotted with `Plot.jl` as follows. Below, `G` is a `CurveGraph{T}`.
+The functions [`build_graph_data`](@ref build_graph_data(G::CurveGraph)) allow to compute such `GraphPlotData` from `CurveGraph{T}` objects. These former objects can be plotted with `Plot.jl` as follows. Below, `G` is a `CurveGraph{T}`.
 
 ```julia
 using Plots
