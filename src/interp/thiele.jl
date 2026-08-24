@@ -132,8 +132,18 @@ function thiele(
     end
     # We verify that the interpolating formula is correct
     # for an additional point.
-    xᵢ = xᵢ + 1
-    if evaluate(f, xᵢ) != bb(xᵢ)
+    while true
+        xᵢ = xᵢ + 1
+        if !iszero(evaluate(denominator(f), xᵢ))
+            break
+        end
+    end
+    yᵢ = try
+        bb(xᵢ)
+    catch _
+        throw(ThieleError("Verification failed."))
+    end
+    if evaluate(f, xᵢ) != yᵢ
         throw(ThieleError("Verification failed."))
     end
     return f
