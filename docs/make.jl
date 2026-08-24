@@ -1,5 +1,8 @@
+#using Pkg
+#Pkg.activate("../../AlgebraicSolving.jl/")
 using AlgebraicSolving
 using Documenter
+
 
 push!(LOAD_PATH, "../src")
 

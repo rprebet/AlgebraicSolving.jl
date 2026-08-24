@@ -13,7 +13,7 @@ using AlgebraicSolving
 Pages = ["real-algebraic-geometry.md"]
 ```
 
-# Equidimensional Decomposition
+# Real Algebraic Geometry
 
 ## Introduction
 
@@ -35,6 +35,34 @@ components of semi-algebraic sets:
 		info_level::Int=0
 		)
 ```
+
+AlgebraicSolving allows to compute a roadmap for the real trace of the zero-set
+of the ideal spanned by given input generators over the rationals.
+
+It assumes that the underlying algebraic set is **smooth**, and its real trace is **bounded**.
+
+The underlying engine is provided by msolve.
+
+```@docs
+    roadmap(
+      I::Ideal{P} where P <: QQMPolyRingElem;
+      C::Vector{Vector{Vector{QQFieldElem}}}=Vector{Vector{QQFieldElem}}[],
+      info_level::Int=0
+    )
+```
+
+In addition, AlgebraicSolving can compute equations definition critical loci of polynomial maps over the given algebraic set.
+
+```@docs
+   computepolar(
+        J::Union{Vector{Int},UnitRange{Int}},
+        V::Ideal{P};
+        phi::Vector{P} = P[],
+        dimproj = length(J)-1,
+        only_mins = false
+    ) where (P <: MPolyRingElem)
+```
+
 
 AlgebraicSolving also implements functionality for real root classification:
 
