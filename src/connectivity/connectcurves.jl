@@ -57,7 +57,7 @@ end
 
 @doc Markdown.doc"""
     curve_graph(I::Ideal; generic=true, outf=true, kwargs...)
-    curve_graph(P::RationalCurveParametrization; kwargs...)
+    curve_graph(P::CurveRationalParametrization; kwargs...)
 
     # Both functions accept optional control points C in various formats:
     curve_graph(I, C::Vector{P}; kwargs...)
@@ -67,7 +67,7 @@ end
 Computes a planar straight-line graph that is homeomorphic to a real algebraic (space) curve.
 
 ### Core Workflow & Pre-processing
-1. **Parametrization:** If given an `Ideal`, it first computes a `RationalCurveParametrization`.
+1. **Parametrization:** If given an `Ideal`, it first computes a `CurveRationalParametrization`.
     If `generic=false`, it applies a random integer shear transformation to place the curve into generic position.
 2. **Coefficient Extraction:** Pulls the planar projection `f(x,y) = 0` and the vertical lift `z = g(x,y) / df/dy(x,y)` from the parametrization.
 3. **Graph Construction:** Computes bounding boxes for critical points, routes connections,
@@ -81,7 +81,7 @@ Returns a `CurveGraph{T}` object (where `T` is determined by the `outf` flag), c
 
 ### Arguments
 * **`I`** (`Ideal`): The algebraic ideal defining the curve.
-* **`P`** (`RationalCurveParametrization`): A pre-computed rational parametrization.
+* **`P`** (`CurveRationalParametrization`): A pre-computed rational parametrization.
 * **`C`** (Optional): User-defined plane points on the curve (control points). Given either as Ideal or RationalParametrization.
 * **`generic`** (`Bool`, default `true`): If `false`, applies a random shear transformation.
 * **`precx`** (`Int`, default `150`): Base numerical precision for real root isolation.
@@ -169,17 +169,17 @@ function prepare_param(P,Q)
 end
 
 # Case 1: No control points
-curve_graph(p::RationalCurveParametrization; kwargs...) =
+curve_graph(p::CurveRationalParametrization; kwargs...) =
     _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
                         Dict{Int, Vector{typeof(p.elim)}}(); kwargs...)
 
 # Case 2: C is a Vector of Parametrizations
-curve_graph(p::RationalCurveParametrization, C::Vector{RationalParametrization}; kwargs...) =
+curve_graph(p::CurveRationalParametrization, C::Vector{RationalParametrization}; kwargs...) =
     _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
                         Dict( i => prepare_param(c, p.elim)  for (i,c) in enumerate(C)); kwargs...)
 
 # Case 3: C is a Dictionary of Parametrizations
-curve_graph(p::RationalCurveParametrization, C::Dict{Int, RationalParametrization}; kwargs...) =
+curve_graph(p::CurveRationalParametrization, C::Dict{Int, RationalParametrization}; kwargs...) =
      _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
                         Dict( i => prepare_param(c, p.elim) for (i,c) in C); kwargs...)
 
