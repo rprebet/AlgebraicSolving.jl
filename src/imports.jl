@@ -7,7 +7,7 @@ using StaticArrays
 import Random: MersenneTwister
 import Logging: ConsoleLogger, with_logger, Warn, Info
 import Printf: @sprintf, @printf
-import Distributed: AbstractWorkerPool, remotecall_fetch
+import Distributed: AbstractWorkerPool, default_worker_pool, remotecall_fetch
 
 import Nemo:
     bell,
@@ -27,6 +27,7 @@ import Nemo:
     fraction_field,
     GF,
     height,
+    inv,
     is_prime,
     is_probable_prime,
     is_square,
@@ -59,3 +60,8 @@ import Nemo:
     ZZMatrix,
     ZZRing,
     ZZRingElem
+
+import Nemo.Generic:
+    FracFieldElem,
+    MatSpaceElem,
+    MPoly

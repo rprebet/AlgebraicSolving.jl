@@ -74,7 +74,7 @@ function computepolar(
 
     # Construct the truncated Jacobian matrix
     psi = vcat(V.gens, phi[Jphi])
-    JW = matrix(R, QQMPolyRingElem[ derivative(f, k) for f in psi, k in setdiff(1:n, Jproj)])
+    JW = matrix(R, P[ derivative(f, k) for f in psi, k in setdiff(1:n, Jproj)])
     # Compute the minors
     sizeminors = c + length(Jphi) + min(dimproj, length(J)-1) - (length(J)-1)
     minors = _compute_minors(sizeminors, JW)
