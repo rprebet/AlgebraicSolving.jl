@@ -32,7 +32,8 @@ components of semi-algebraic sets:
 		ineqs::Vector{QQMPolyRingElem};
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
-		info_level::Int=0)::Vector{Vector{Vector{QQFieldElem}}}
+		info_level::Int=0
+		)
 ```
 
 AlgebraicSolving also implements functionality for real root classification:
@@ -47,13 +48,13 @@ AlgebraicSolving also implements functionality for real root classification:
 		show_progress::Bool=info_level >= 1,
 		output_form::Symbol=:sign,
 		ignore_no_real_roots::Bool=false,
-		)::SemialgebraicSet
+		)
 ```
 
 This is based on the computation of Hermite matrices:
 
 ```@docs
-    hermite_matrix(gb::Vector{T}, b::Vector{T}, g::T)::MatElem where {T<:MPolyRingElem}
+    hermite_matrix(gb::Vector{T}, b::Vector{T}, g::T) where {T<:MPolyRingElem}
 ```
 
 ```@docs
@@ -64,7 +65,7 @@ This is based on the computation of Hermite matrices:
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
 		show_progress::Bool=false
-		)::MatSpaceElem{K} where {K<:FracFieldElem}
+		) where {K<:FracFieldElem}
 ```
 
 ```@docs
@@ -75,7 +76,7 @@ This is based on the computation of Hermite matrices:
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
 		show_progress::Bool=false
-		)::MatSpaceElem{K} where {K<:FracFieldElem}
+		) where {K<:FracFieldElem}
 ```
 
 ```@docs
@@ -87,5 +88,5 @@ This is based on the computation of Hermite matrices:
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
 		show_progress::Bool=false
-		)::QQMatrix where {K<:FracFieldElem}
+		) where {K<:FracFieldElem}
 ```

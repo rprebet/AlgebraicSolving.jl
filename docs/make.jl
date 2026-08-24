@@ -24,6 +24,7 @@ makedocs(
                          "hilbert.md",
                          "dimension.md",
                          "solvers.md",
+                         "real-algebraic-geometry.md",
                          "decomposition.md"],
         "Examples" => ["examples.md"]
         ]

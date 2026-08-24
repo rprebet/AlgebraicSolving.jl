@@ -48,7 +48,7 @@ well as a signature based algorithm to compute Gröbner bases.
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
 		show_progress::Bool=false
-		)::Vector{Generic.MPoly{FracFieldElem{QQMPolyRingElem}}} where {K<:FracFieldElem}
+		) where {K<:FracFieldElem}
 ```
 
 The engine supports the elimination of one block of variables considering the
@@ -86,7 +86,7 @@ a matrix representing the linear map sending an element $f\in R / I$
 to $gf \in R/I$.
 
 ```@docs
-	multiplication_matrix(gb::Vector{T}, b::Vector{T}, g::T)::MatElem where {T<:MPolyRingElem}
+	multiplication_matrix(gb::Vector{T}, b::Vector{T}, g::T) where {T<:MPolyRingElem}
 ```
 
 ```@docs
@@ -97,5 +97,5 @@ to $gf \in R/I$.
 		nr_thrds::Int=1,
 		worker_pool::AbstractWorkerPool=default_worker_pool(),
 		show_progress::Bool=false
-		)::MatSpaceElem{K} where {K<:FracFieldElem}
+		) where {K<:FracFieldElem}
 ```
