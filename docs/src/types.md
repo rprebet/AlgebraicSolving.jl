@@ -188,7 +188,6 @@ of the other's*. In many cases, one can even replace "descendant" by "parent".
 
 
 See the documentation of the [roadmap](@ref) function for further details.
-<<<<<<< HEAD
 
 # Graph Data Structures & Visualization
 
@@ -196,7 +195,7 @@ See the documentation of the [roadmap](@ref) function for further details.
 
 The `CurveGraph{T}` structure represents a planar straight-line graph
 that is homeomorphic to a real algebraic curve. It is the output of
-algorithms [compute_graph](@ref), which compute the planar projection
+algorithms [curve_graph](@ref), which compute the planar projection
 of curves while resolving apparent singularities.
 
 These real algebraic curves are typically output of roadmap algorithms
@@ -292,5 +291,3 @@ plot_graphs(build_graph_data(CG))
 
 This will plot graphs in CG with distinct and distinguishable colors.
 See the documentation of the [build_graph_data](@ref) function for further details.
-=======
->>>>>>> main

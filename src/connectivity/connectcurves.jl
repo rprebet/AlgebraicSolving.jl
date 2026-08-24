@@ -8,8 +8,7 @@ include("graph.jl")
 include("plots.jl")
 
 @doc Markdown.doc"""
-    curve_arrangement_graph(curves::Vector{Ideal}; generic=true, outf=true, kwargs...)
-    curve_arrangement_graph(curves::Vector{Ideal}, C::Vector; kwargs...)
+    curve_arrangement_graph(curves::Vector{Ideal}; generic=true, outf=true, v=0, kwargs...)
 
 Computes the combined planar graph of an arrangement of multiple space curves.
 Automatically computes the mutual intersections between all curves and guarantees
