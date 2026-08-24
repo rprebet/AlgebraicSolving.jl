@@ -290,4 +290,4 @@ plot_graphs(build_graph_data(CG))
 ```
 
 This will plot graphs in CG with distinct and distinguishable colors.
-See the documentation of the [build_graph_data](@ref) function for further details.
+See the documentation of the [`build_graph_data`](@ref build_graph_data(CG::Vector{CurveGraph})) function for further details.
