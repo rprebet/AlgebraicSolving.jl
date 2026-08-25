@@ -71,4 +71,66 @@
     I = AlgebraicSolving.Ideal([f(x1+x2, x1-x2, 0), x3])
     G = curve_graph(I)
     @test number_of_connected_components(G) == 1
+
+    ##########################
+    ####### Edges cases ######
+
+    R, (x1, x2, x3) = polynomial_ring(QQ, [:x1, :x2, :x3])
+
+    # Zero Ideal
+    I_zero = AlgebraicSolving.Ideal([R(0)])
+    @test_throws Exception curve_graph(I_zero)
+
+    # Empty Real Locus (x^2 + y^2 + 1 = 0)
+    I_empty = AlgebraicSolving.Ideal([x1^2 + x2^2 + 1, x3])
+    G_empty = curve_graph(I_empty)
+    @test number_of_connected_components(G_empty) == 0
+    @test length(G_empty.vertices) == 0
+
+    # Simple (unbounded) straight line
+    I_line = AlgebraicSolving.Ideal([x1 - x2 + 1, x3])
+    G_line = curve_graph(I_line)
+    @test number_of_connected_components(G_line) == 1
+
+    # Output format flag (outf=false) testing exact arithmetic coordinates
+    G_exact = curve_graph(I_line, outf=false)
+    if length(G_exact.vertices) > 0
+        # Check that the coordinates are exact fraction field elements, not Float64
+        @test !(G_exact.vertices[1][1] isa Float64)
+    end
+
+    ##########################
+    ####### Arrangements #####
+
+    R, (x1, x2, x3) = polynomial_ring(QQ, [:x1, :x2, :x3])
+
+    # Invalid Input (no curve)
+    @test_throws AssertionError curve_arrangement_graph(typeof(AlgebraicSolving.Ideal([x1]))[])
+
+    # Trivial Arrangement (Single Curve)
+    I_line = AlgebraicSolving.Ideal([x2 - x3, x1])
+    G_arr_single = curve_arrangement_graph([I_line])
+    @test number_of_connected_components(G_arr_single) == 1
+
+    # Two Disjoint Curves (Parallel Lines)
+    I_line1 = AlgebraicSolving.Ideal([x2 - x3, x1])
+    I_line2 = AlgebraicSolving.Ideal([x2 - x3 - 1, x1])
+    G_arr_disjoint = curve_arrangement_graph([I_line1, I_line2])
+    # They don't intersect, so they should remain 2 separate components
+    @test number_of_connected_components(G_arr_disjoint) == 2
+
+    # Two Intersecting Curves (Circle and Line)
+    # Circle of radius 1 centered at origin, and a line
+    I_circle1 = AlgebraicSolving.Ideal([x2^2 + x3^2 - 1, x1])
+    I_circle2 = AlgebraicSolving.Ideal([(x2-1)^2 + (x3-1)^2 - 2, x1])
+    G_arr_intersect = curve_arrangement_graph([I_circle1, I_circle2])
+    # The line cuts the circle into two halves, fully connected.
+    @test number_of_connected_components(G_arr_intersect) == 1
+
+    # SKEW CURVES: Apparent Singularities
+    # Their 2D projections cross at (0,0), but they DO NOT intersect in 3D.
+    I_skew1 = AlgebraicSolving.Ideal([x2 - x3, x1 - 1])
+    I_skew2 = AlgebraicSolving.Ideal([x2 + x3, x1 + 1])
+    G_arr_skew = curve_arrangement_graph([I_skew1, I_skew2])
+    @test number_of_connected_components(G_arr_skew) == 2
 end

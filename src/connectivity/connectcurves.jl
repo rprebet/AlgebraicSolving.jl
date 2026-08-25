@@ -36,8 +36,8 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
     graphs = Vector{CurveGraph{typeout}}(undef, N)
     p_inter = Dict{Set{Int}, RationalParametrization}()
     for i in 1:N
-         v > 0 && println("Compute graph of curve number $i/$N...")
-        p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs)
+        v > 0 && println("Compute graph of curve number $i/$N...")
+        p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs, check_cfs=false)
 
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
         C_i = Dict{Int, RationalParametrization}( j => p_inter[Set((i,j))] for j in 1:i-1)
@@ -47,6 +47,7 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
             p_inter[Set((i,j))] =
                 RationalParametrization(C_i[j].vars, C_i[j].cfs_lf, C_i[j].elim, C_i[j].denom, C_i[j].param)
         end
+
         graphs[i] = curve_graph(p_I, C_i; outf=outf, v=v-1, kwargs...)
     end
 
@@ -112,8 +113,12 @@ function curve_graph(I::Ideal{P}, args...; generic=true, outf=true, v=0, kwargs.
 
     # Base Case: 1D Ideal (Points)
     if n == 1
-        sols = real_solutions(I)
-        Vert = [(typeout(xi[1]), zero(typeout)) for xi in sols]
+        if dimension(I) == 1
+            Vert = [(zero(typeout), zero(typeout))]
+        else
+            sols = real_solutions(I)
+            Vert = [(typeout(xi[1]), zero(typeout)) for xi in sols]
+        end
         # If C is a Dict, instantiate keys. If it's a Vector or absent, return empty Dict
         C_keys = length(args) > 0 && args[1] isa Dict ? keys(args[1]) : Int[]
         Vcon = Dict{Int, Vector{Int}}(k => Int[] for k in C_keys)
@@ -138,14 +143,13 @@ function curve_graph(I::Ideal{P}, args...; generic=true, outf=true, v=0, kwargs.
         C = args[1]
         new_RS = symbols(parent(p_I.elim))
 
-        # Maps Ideal to the new ring and parameterize it with aligned linear forms
-        C_param =  [ is_nothing(lfs) ? rational_parametrization(c) : param_use_lfs(c, u_lfs, new_RS[end-1]) for c in C ]
-
         # Map C based on its input structure
-        if C_input isa AbstractDict
-            C_param = Dict(k => param_C(v) for (k, v) in C_input)
+        if C isa AbstractVector
+            C_param =  [ isnothing(lfs) ? rational_parametrization(c) : param_use_lfs(c, u_lfs, new_RS[end-1]) for c in C ]
+        elseif C isa AbstractDict
+            C_param = Dict( k => isnothing(lfs) ? rational_parametrization(c) : param_use_lfs(c, u_lfs, new_RS[end-1]) for (k, c) in C_param)
         else
-            C_input isa AbstractVector || error("Control points C must be a Vector or Dict of Ideals.")
+           error("Control points C must be a Vector or Dict of Ideals.")
         end
 
         return curve_graph(p_I, C_param; outf=outf, v=v, kwargs...)
@@ -235,8 +239,9 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
     Edg = Tuple{Int, Int}[] # List of tuples (idx, idy)
     Vcon = Dict{Int, Vector{Int}}(k => Int[] for k in keys(C)) # Index of control vertices
 
-    # Empty or unbounded real curves
-    if isempty(xcrit)
+    # Empty or unbounded real curves without control points
+    if isempty(xcrit) ||
+        (length(xcrit) == 1 && haskey(xcrit, -1) && isempty(xcrit[-1]))
         Vert = reduce(vcat, [ (typeout(e), typeout(yy[1])) for e=0:1 for yy in isolate_eval(f,1,1-2*e)])
         nV = length(Vert) / 2
         Edg = [ (i, i + nV) for i=1:nV ]
