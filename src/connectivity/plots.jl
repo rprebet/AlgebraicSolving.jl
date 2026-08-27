@@ -98,9 +98,9 @@ function build_graph_data(G::CurveGraph{T}; width=3.0, vert=true, color="#FF0000
     end
 
     for group in Vcon
-        hx = map(j -> Float64(V[j][1]), group)
-        hy = map(j -> Float64(V[j][2]), group)
-        push!(point_groups, PointGroup((hx, hy), color, :+))
+        hx = map(j -> Float64(V[j][1]), group[2])
+        hy = map(j -> Float64(V[j][2]), group[2])
+        push!(point_groups, PointGroup((hx, hy), color, :o))
     end
 
     return GraphPlotData(edge_group, point_groups)

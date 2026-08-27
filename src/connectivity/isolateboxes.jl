@@ -57,7 +57,6 @@ function _compute_boxes_for_index!(i, params, LBcrit, precx)
         for xc in xvals
     ]
     _expand_degenerate_intervals!(yvals, precx)
-
     @inbounds LBcrit[i] = [[xvals[j], yvals[j]] for j in eachindex(xvals)]
 end
 
@@ -69,7 +68,8 @@ Check if boxes at index i require refinement.
 """
 function _needs_refinement(i, Lfyk, LBcrit, precx)
     arbField = ArbField(precx)
-    m = i <= 1 ? 2 : i
+    m = i < 0 ? 1 : max(2, i)
+
     for box in LBcrit[i]
         pcrit = [rat_to_arb(c, arbField) for c in box]
 
@@ -105,8 +105,8 @@ to this critical point.
 function insulate_crit_boxes(f, params, precx; max_attempts=5, v=0)
     LBcrit, Lprecx = Dict(), Dict()
     Lfyk = _diff_list(f, 2, maximum(keys(params), init=2))
-
     for i in keys(params)
+
         attempts, precxi = 0, precx
         while attempts <= max_attempts
             try

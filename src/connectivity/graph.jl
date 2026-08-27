@@ -182,7 +182,7 @@ function merge_graphs(graphs::Vector{CurveGraph{T}}) where T
 
         # Step 1: Pre-map common control nodes connected to previously merged graphs
         for (k, common_indices_in_i) in G_i.control_nodes
-            if k < i && !isempty(common_indices_in_i)
+            if 0 < k < i && !isempty(common_indices_in_i)
                 @assert haskey(graphs[k].control_nodes, i) "Correspondance is not one-to-one"
                 common_indices_in_k = graphs[k].control_nodes[i]
                 @assert length(common_indices_in_i) == length(common_indices_in_k) "Correspondance is not one-to-one"

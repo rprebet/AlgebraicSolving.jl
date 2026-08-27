@@ -119,12 +119,10 @@
     # They don't intersect, so they should remain 2 separate components
     @test number_of_connected_components(G_arr_disjoint) == 2
 
-    # Two Intersecting Curves (Circle and Line)
-    # Circle of radius 1 centered at origin, and a line
+    # Two Intersecting Circles
     I_circle1 = AlgebraicSolving.Ideal([x2^2 + x3^2 - 1, x1])
     I_circle2 = AlgebraicSolving.Ideal([(x2-1)^2 + (x3-1)^2 - 2, x1])
     G_arr_intersect = curve_arrangement_graph([I_circle1, I_circle2])
-    # The line cuts the circle into two halves, fully connected.
     @test number_of_connected_components(G_arr_intersect) == 1
 
     # SKEW CURVES: Apparent Singularities

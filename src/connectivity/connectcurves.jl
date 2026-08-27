@@ -8,13 +8,13 @@ include("graph.jl")
 include("plots.jl")
 
 @doc Markdown.doc"""
-    curve_arrangement_graph(curves::Vector{Ideal}; generic=true, outf=true, v=0, kwargs...)
+    curve_arrangement_graph(curves::Vector{Ideal}; generic::Union{ZZRingElem, Int64}=0, outf=true, v=0, kwargs...)
 
-Computes the combined planar graph of an arrangement of multiple space curves.
+Computes the combined planar graph of an arrangement of multiple space curves in complete intersection.
 Automatically computes the mutual intersections between all curves and guarantees
 they are projected using a shared, unified linear form.
 """
-function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=true, v=0, kwargs...) where {P <: QQMPolyRingElem}
+function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic::Union{ZZRingElem, Int64} = 0, outf=true, v=0, kwargs...) where {P <: QQMPolyRingElem}
     N = length(curves)
     @assert N > 0 "Must provide at least one curve."
 
@@ -25,8 +25,9 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
 
     # 1. Establish the Shared Projection Context
     # We MUST generate the linear forms here and force all curves/intersections to use them.
-    if !generic
-        make_vec(i) = [j <= n ? ZZRingElem(rand(-100:100)) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
+    if generic != 0
+        Bgen = ZZ(generic < 0 ? 100 : generic)
+        make_vec(i) = [j <= n ? rand(-Bgen:Bgen) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
         cfs_lfs = make_vec.(1:3)
     else
         cfs_lfs = [ [ j == n-3+i ? -one(ZZRingElem) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3 ] for i in 1:3 ]
@@ -43,18 +44,33 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
         C_i = Dict{Int, RationalParametrization}( j => p_inter[Set((i,j))] for j in 1:i-1)
         if p_I.elim == -1
-            C, = polynomial_ring(QQ,"x")
+            one_x = one(polynomial_ring(QQ,"x")[1])
             for j in i+1:N
                 p_inter[Set((i,j))] =
-                    RationalParametrization(Symbol[], ZZRingElem[], C(-1), C(-1), QQPolyRingElem[])
+                    RationalParametrization(Symbol[], ZZRingElem[], -one_x, -one_x, QQPolyRingElem[])
             end
         else
             for j in i+1:N
                 I_ij = vcat(curves[i].gens, curves[j].gens) |> Ideal
-                println(I_ij, p_I.vars, cfs_lfs)
-                C_i[j] = param_newvars(I_ij, p_I.vars, cfs_lfs)
+                try
+                    C_i[j] = param_newvars(I_ij, p_I.vars, cfs_lfs)
+                catch e
+                    if e isa ErrorException &&
+                        e.msg == "Dimension of ideal is greater than zero, no solutions provided."
+                        error("The curves $i and $j are not in complete intersection")
+                    end
+                    rethrow()
+                end
                 p_inter[Set((i,j))] =
                     RationalParametrization(C_i[j].vars, C_i[j].cfs_lf, C_i[j].elim, C_i[j].denom, C_i[j].param)
+            end
+
+            # Attach User Query / Control Points with Non-Positive Keys (<= 0)
+            if !isnothing(Icon)
+                Icons = Icon isa Vector ? Icon : [Icon]
+                for (k, Con) in enumerate(Icons)
+                    C_i[-k] = param_newvars(Ideal(vcat(curves[i].gens, Con.gens)), p_I.vars, cfs_lfs)
+                end
             end
         end
 
@@ -78,7 +94,7 @@ Computes a planar straight-line graph that is homeomorphic to a real algebraic (
 
 ### Core Workflow & Pre-processing
 1. **Parametrization:** If given an `Ideal`, it first computes a `CurveRationalParametrization`.
-    If `generic=false`, it applies a random integer shear transformation to place the curve into generic position.
+    If `generic!=0`, it applies a random linear transformation to place the curve into generic position. The absolute size of the used coefficients is generic if positive, 100 else.
 2. **Coefficient Extraction:** Pulls the planar projection `f(x,y) = 0` and the vertical lift `z = g(x,y) / df/dy(x,y)` from the parametrization.
 3. **Graph Construction:** Computes bounding boxes for critical points, routes connections,
     and identifies "apparent singularities" (2D crossings that do not intersect in 3D).
@@ -93,7 +109,7 @@ Returns a `CurveGraph{T}` object (where `T` is determined by the `outf` flag), c
 * **`I`** (`Ideal`): The algebraic ideal defining the curve.
 * **`P`** (`CurveRationalParametrization`): A pre-computed rational parametrization.
 * **`C`** (Optional): User-defined plane points on the curve (control points). Given either as Ideal or RationalParametrization.
-* **`generic`** (`Bool`, default `true`): If `false`, applies a random shear transformation.
+* **`generic`** (`Union{ZZRingElem, Int64}`, default `0`): If `!=0`, applies a random shear transformation.
 * **`precx`** (`Int`, default `150`): Base numerical precision for real root isolation.
 * **`v`** (`Int`, default `0`): Verbosity level.
 * **`force_app`** (`Bool`, default `false`): Skips 3D intersection checks, treating all 2D nodes as apparent singularities.
@@ -116,7 +132,7 @@ julia> number_of_connected_components(G)
 3
 ```
 """
-function curve_graph(I::Ideal{P}, args...; generic=true, outf=true, v=0, kwargs...) where {P <: QQMPolyRingElem}
+function curve_graph(I::Ideal{P}, args...; generic::Union{ZZRingElem, Int64} = 0, outf=true, v=0, kwargs...) where {P <: QQMPolyRingElem}
     R = parent(I)
     n = nvars(R)
     typeout = outf ? Float64 : QQFieldElem
@@ -136,11 +152,12 @@ function curve_graph(I::Ideal{P}, args...; generic=true, outf=true, v=0, kwargs.
     end
 
     # Pre-processing: Generic Position Shear
-    # We explicitly define linear forms if !generic to share them with C
+    # We explicitly define linear forms if generic != 0 to share them with C
     v > 0 && println("Compute curve rational parametrization...")
     lfs = nothing
-    if !generic
-        make_vec(i) = [j <= n ? ZZRingElem(rand(-100:100)) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
+    if generic != 0
+        Bgen = ZZ(generic < 0 ? ZZ(100) : generic)
+        make_vec(i) = [j <= n ? rand(-Bgen:Bgen) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
         lfs = make_vec.(1:3)
         u_lfs = lfs[2][1:end-3] # for zero-dim param of control pts
         p_I = curve_rational_parametrization(I, cfs_lfs = lfs, check_cfs=false)
