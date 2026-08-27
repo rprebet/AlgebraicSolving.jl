@@ -159,7 +159,7 @@ The underlying engines are
 #### Computing with curve graphs
 
 Once such a graph is computed, it is encoded in a CurveGraph object, whose description can be found in the Types section of this documentation.
-These are nothing but sets of verteices and nodes.
+These are nothing but sets of vertices and nodes.
 One can perform different operations on such strutures.
 
 ```@docs

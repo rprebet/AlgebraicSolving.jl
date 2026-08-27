@@ -35,17 +35,27 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}; generic=true, outf=tr
     # 3. Compute Intersections and Build Individual Graphs
     graphs = Vector{CurveGraph{typeout}}(undef, N)
     p_inter = Dict{Set{Int}, RationalParametrization}()
+
     for i in 1:N
         v > 0 && println("Compute graph of curve number $i/$N...")
         p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs, check_cfs=false)
 
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
         C_i = Dict{Int, RationalParametrization}( j => p_inter[Set((i,j))] for j in 1:i-1)
-        for j in i+1:N
-            I_ij = vcat(curves[i].gens, curves[j].gens) |> Ideal
-            C_i[j] = param_newvars(I_ij, p_I.vars, cfs_lfs)
-            p_inter[Set((i,j))] =
-                RationalParametrization(C_i[j].vars, C_i[j].cfs_lf, C_i[j].elim, C_i[j].denom, C_i[j].param)
+        if p_I.elim == -1
+            C, = polynomial_ring(QQ,"x")
+            for j in i+1:N
+                p_inter[Set((i,j))] =
+                    RationalParametrization(Symbol[], ZZRingElem[], C(-1), C(-1), QQPolyRingElem[])
+            end
+        else
+            for j in i+1:N
+                I_ij = vcat(curves[i].gens, curves[j].gens) |> Ideal
+                println(I_ij, p_I.vars, cfs_lfs)
+                C_i[j] = param_newvars(I_ij, p_I.vars, cfs_lfs)
+                p_inter[Set((i,j))] =
+                    RationalParametrization(C_i[j].vars, C_i[j].cfs_lf, C_i[j].elim, C_i[j].denom, C_i[j].param)
+            end
         end
 
         graphs[i] = curve_graph(p_I, C_i; outf=outf, v=v-1, kwargs...)
