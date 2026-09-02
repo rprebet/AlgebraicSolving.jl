@@ -67,7 +67,7 @@
     # Non-generic because two crit-point above (but rat_cur_param works)
     f = x1^4 - x1^3 + 2*x1^2*x2^2 - 7//4*x1^2 - x1*x2^2 + x1 + x2^4 - 7//4*x2^2 + 3//4
     I = AlgebraicSolving.Ideal([f, x3])
-    @test_throws ErrorException curve_graph(I)
+    @test_throws BoundsError curve_graph(I)
     I = AlgebraicSolving.Ideal([f(x1+x2, x1-x2, 0), x3])
     G = curve_graph(I)
     @test number_of_connected_components(G) == 1

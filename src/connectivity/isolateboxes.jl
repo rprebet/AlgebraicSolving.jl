@@ -50,10 +50,10 @@ Compute isolating boxes for a single index i.
 function _compute_boxes_for_index!(i, params, LBcrit, precx)
     xvals = reduce(vcat, (isolate(pp, prec=precx) for pp in params[i][1]))
     _expand_degenerate_intervals!(xvals, precx)
-
     arbField = ArbField(precx)
+    fact = gcd(params[i][2], params[i][3])
     yvals = [
-        evaluate_arb(params[i][2], params[i][3], xc, arbField)
+        evaluate_arb(params[i][2]/fact, params[i][3]/fact, xc, arbField)
         for xc in xvals
     ]
     _expand_degenerate_intervals!(yvals, precx)

@@ -46,7 +46,7 @@ julia> all_eqs(RM)
 """
 function roadmap(
     I::Ideal{P},                                                            # input ideal
-    C::Vector{Vector{Vector{QQFieldElem}}}=Vector{Vector{QQFieldElem}}[],   # query points: interval with rational coefficients
+    C::Vector{Vector{Vector{QQFieldElem}}}=Vector{Vector{QQFieldElem}}[];   # query points: interval with rational coefficients
     info_level::Int=0                                                       # verbosity level
 ) where {P <: QQMPolyRingElem}
 
@@ -68,7 +68,7 @@ function roadmap(
 
     @assert(parent(I)==parent(C), "Equations for variety and query points must live the same ring")
     CI = real_solutions(C, info_level=max(info_level-1,0), nr_thrds=Threads.nthreads(), interval=true)
-    return roadmap(I, CI, info_level)
+    return roadmap(I, CI, info_level=info_level)
 end
 
 function _roadmap_rec(
@@ -304,30 +304,35 @@ function check_genericity(
 
     # Test 1: Fiber dimension
     if dimfib(Ip.gens) != I.dim - e
+        @show dimfib(Ip.gens)
         return false
     end
 
     # Test 2: Fiber must be smooth
     polar_e = computepolar(1:e, Ip, phi=Lp_e)
     if dimfib(polar_e) != -1
+        @assert e != 0 "Input variety must be smooth"
         return false
     end
 
     # Test 3: K1Fq must be finite
     K1Fq_pol = computepolar(1:e+1, Ip, phi=Lp_e1)
     if dimfib(K1Fq_pol) > 0
+        @show dimfib(K1Fq_pol)
         return false
     end
 
     # Test 4: K2Fq must have dimension 1
     K2Fq_gens = computepolar(1:e+2, Ip, phi=Lp_e2)
     if dimfib(K2Fq_gens) != 1
+        @show dimfib(K2Fq_gens)
         return false
     end
 
     # Test 5: Points with vertical tangents in W must be finite
     K1Wm = computepolar(1:e+2, Ideal(K2Fq_gens), phi=Lp_e2, dimproj=e)
     if dimfib(K1Wm) > 0
+        @show dimfib(K1Wm)
         return false
     end
 

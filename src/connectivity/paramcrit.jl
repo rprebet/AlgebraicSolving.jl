@@ -147,6 +147,7 @@ function intersect_biv(P::Vector, A::MPolyRingElem)
 
         # Trivial GCD : reduced gcd has larger degree
         # Then, A(x,y) does not vanish on the points defined by q(x)=0
+
         all(iszero(c) for c in dA_Z_next[2:end]) && return one(parent(A))
 
         pprod *= p
@@ -267,7 +268,10 @@ function param_crit_split(f::MPolyRingElem, g::MPolyRingElem; v=0, force_app=fal
 
             dA = [intersect_biv([q, -get_sr(2, -1), get_sr(2, 0)], A) for q in group_sqr[2]]
 
-            param_crit[0] = [group_sqr[2] ./ dA, -get_sr(2, -1), get_sr(2, 0)]
+            param_crit[0] = [ group_sqr[2] ./ dA, -get_sr(2, -1), get_sr(2, 0)]
+            filter!(!is_constant, param_crit[0][1])
+
+            filter!(!is_constant, dA)
             append!(param_crit[2][1], dA)
         else
             param_crit[0] = [group_sqr[2], -get_sr(2, -1), get_sr(2, 0)]
@@ -282,7 +286,7 @@ function param_crit_split(f::MPolyRingElem, g::MPolyRingElem; v=0, force_app=fal
     for m in sqrmult
         for q in group_sqr[m]
             for (i, dji) in fact_gcd(q, lsr)
-                @assert haskey(param_crit, i+1) "Curve not in generic position. Try with generic=false."
+                @assert haskey(param_crit, i+1) "Curve not in generic position. Try with generic=-1."
                 push!(param_crit[i+1][1], dji)
             end
         end

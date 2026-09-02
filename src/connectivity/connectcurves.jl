@@ -39,6 +39,7 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic
 
     for i in 1:N
         v > 0 && println("Compute graph of curve number $i/$N...")
+
         p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs, check_cfs=false)
 
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
@@ -82,7 +83,7 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic
 end
 
 @doc Markdown.doc"""
-    curve_graph(I::Ideal; generic=true, outf=true, kwargs...)
+    curve_graph(I::Ideal; generic=0, outf=true, kwargs...)
     curve_graph(P::CurveRationalParametrization; kwargs...)
 
     # Both functions accept optional control points C in various formats:
@@ -242,10 +243,11 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
     # Zero-dim param conditions
     d = total_degree(f)
     @assert degree(f, 2) == d && degree(f, 1) == d && degree(g, 2) < d &&
-    is_squarefree(f) "Curve not in generic position. Try with generic=false."
+    is_squarefree(f) "Curve not in generic position. Try with generic=-1."
 
     v > 0 && println("Compute parametrization of critical pts...")
     @iftime (v > 0) params = param_crit_split(f, g, v=v-1, force_app=force_app)
+
     keys_C = collect(keys(C))
     for (i, k) in enumerate(keys_C)
         params[-i] = [ [int_coeffs(C[k][1])], C[k][2], C[k][3] ]
