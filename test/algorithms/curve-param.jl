@@ -93,15 +93,31 @@
     I_nongen = AlgebraicSolving.Ideal([x1^2 - x2, x1*x3, x4])
     param = curve_rational_parametrization(I_nongen)
 
-    @test param.cfs_lfs == Vector{ZZRingElem}[[1, 1, 1, 1, 0, -1], [2, 1, 1, 1, -1, 0]]
-    @test param.elim == -x^3 + 3*x^2*y + 2*x^2 - 3*x*y^2 - 3*x*y + y^3 + y^2
+    @test param.cfs_lfs == Vector{ZZRingElem}[[1, 1, 1, 1, 0, -1], [0, 1, 0, 0, -1, 0]]
+    @test param.elim == x^2*y - 2*x*y^2 + y^3 - y^2
     @test param.param == QQMPolyRingElem[
-        -3*x^2 + 4*x*y - y^2,
-        2*x^3 - 4*x^2*y + 2*x^2 + 2*x*y^2 - 3*x*y + y^2,
-        x^3 - 2*x^2*y - 2*x^2 + x*y^2 + x*y,
+        -x*y - y^2,
+        -2*x^2*y + 2*x*y^2 + y^2,
+        x^3 - 2*x^2*y + x*y^2 - x*y,
         C(0)
     ]
 
     # Non radical curve
     @test_throws ["bad specializations", "radicality"] curve_rational_parametrization(AlgebraicSolving.Ideal([x1^2, x2, x3]))
+
+    # ----------------------------------------------------
+    # 7. Genericity failures only detectable by really running msolve
+    # ----------------------------------------------------
+    R, (x1, x2, x3, x4) = polynomial_ring(QQ, ["x1", "x2", "x3", "x4"])
+    c = QQ(16499269484942379435, 18446744073709551616)
+    I_hard = AlgebraicSolving.Ideal([x1^2 + x3^2 + x4^2 - 1, -x1*x3 + x2 + 2*x3*x4, x1 - c])
+
+    # Forcing that exact (bad) pair must fail
+    @test_throws ["failed", "number 2"] curve_rational_parametrization(
+        I_hard, cfs_lfs = [[0, 1, 0, 0, 0, -1], [1, 1, 1, 1, -1, 0]])
+
+    # The automatic search must still succeed on the very same curve
+    param = curve_rational_parametrization(I_hard)
+    @test param.vars == [:x1, :x2, :x3, :x4, :_Z2, :_Z1]
+    @test param.cfs_lfs == Vector{ZZRingElem}[[0, 1, 0, 0, 0, -1], [0, 0, 0, 1, -1, 0]]
 end

@@ -33,13 +33,14 @@
 
     ## Plane curves with different topology and especially singularities ##
 
-    # Not generic
+    # Degree in x2 less than total degree
     I = AlgebraicSolving.Ideal([x2^2 - x1^2*(x1 + 1), x3])
     @test_throws AssertionError curve_graph(I)
     # Apply change of variables
     I = AlgebraicSolving.Ideal([-x1^3 - 9*x1^2*x2 - x1^2 - 27*x1*x2^2 - 6*x1*x2 - 27*x2^3 - 8*x2^2, x3])
     G = curve_graph(I)
     @test number_of_connected_components(G) == 1
+
 
     # Crunode (after generic change of variable)
     f = -2744*x1^3 - 34692*x1^2*x2 + 8085*x1^2 - 146202*x1*x2^2 + 896*x1*x2 - 205379*x2^3 - 3285*x2^2
@@ -88,7 +89,7 @@
     @test length(G_empty.vertices) == 0
 
     # Simple (unbounded) straight line
-    I_line = AlgebraicSolving.Ideal([x1 - x2 + 1, x3])
+    I_line = AlgebraicSolving.Ideal([x3 - x2 + 1, x1])
     G_line = curve_graph(I_line)
     @test number_of_connected_components(G_line) == 1
 

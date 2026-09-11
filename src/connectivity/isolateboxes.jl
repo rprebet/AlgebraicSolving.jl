@@ -62,17 +62,20 @@ end
 
 
 """
-    _needs_refinement(i, f, LBcrit, precx)
+    _needs_refinement(i, f, LBcrit, precx; m_bump=0)
 
 Check if boxes at index i require refinement.
+
+Control points (`i < 0`) are assumed first to be regular and, in case
+of repetitive failure `insulate_crit_boxes` uses `m_bump` to let a
+control point retry against a higher-order check.
 """
-function _needs_refinement(i, Lfyk, LBcrit, precx)
+function _needs_refinement(i, Lfyk, LBcrit, precx; m_bump=0)
     arbField = ArbField(precx)
-    m = i < 0 ? 1 : max(2, i)
+    m = (i < 0 ? 1 : max(2, i)) + m_bump
 
     for box in LBcrit[i]
         pcrit = [rat_to_arb(c, arbField) for c in box]
-
         if contains_zero(evaluate(Lfyk[m+1], pcrit))
             return true
         end
@@ -95,7 +98,7 @@ function _diff_list(p, v, n)
 end
 
 """
-    compute_crit_and_singular_boxes(f, params, precx; max_attempts=5, v=0)
+    cinsulate_crit_boxes(f, params, precx; max_attempts=5, v=0)
 
 Compute insulating boxes for critical points, refining precision if
 necessary. Insulating means that each box contains a single critical
@@ -104,10 +107,11 @@ to this critical point.
 """
 function insulate_crit_boxes(f, params, precx; max_attempts=5, v=0)
     LBcrit, Lprecx = Dict(), Dict()
-    Lfyk = _diff_list(f, 2, maximum(keys(params), init=2))
+    max_sing = maximum(keys(params), init=2)
+    Lfyk = _diff_list(f, 2, max_sing)
     for i in keys(params)
 
-        attempts, precxi = 0, precx
+        attempts, precxi, m_bump = 0, precx, 0
         while attempts <= max_attempts
             try
                 attempts > 0 && v > 0 &&
@@ -116,7 +120,7 @@ function insulate_crit_boxes(f, params, precx; max_attempts=5, v=0)
                 _compute_boxes_for_index!(i, params, LBcrit, precxi)
 
                 # singularity check
-                if !_needs_refinement(i, Lfyk, LBcrit, precxi)
+                if !_needs_refinement(i, Lfyk, LBcrit, precxi; m_bump)
                     break
                 end
 
@@ -128,6 +132,14 @@ function insulate_crit_boxes(f, params, precx; max_attempts=5, v=0)
                 precxi *= 2
                 attempts += 1
                 v > 1 && println("Error at index $i: ", e)
+            end
+
+            # A control point (i < 0) that still needs refinement after
+            # `max_attemps` is likely to coincides with a critical point
+            if attempts > max_attempts && i < 0 && m_bump + 1 < max_sing
+                m_bump += 1
+                attempts, precxi = 0, precx
+                v > 0 && println("Index $i still unresolved -> raising order to m=$(1 + m_bump)")
             end
         end
         attempts > max_attempts &&

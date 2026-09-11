@@ -85,7 +85,7 @@ function curve_rational_parametrization(
         Lr = Vector{RationalParametrization}(undef, length(free_ind))
         for j in eachindex(free_ind)
             info_level > 0 && print("Evaluated parametrizations: $(j)/$(length(free_ind))\r")
-            Lr[j] = rational_parametrization(Ideal(LFeval[j]), nr_thrds=nr_thrds)
+            Lr[j] = rational_parametrization(Ideal(LFeval[j]), nr_thrds=nr_thrds, info_level=0)
 
             # Specialization checks: same vars order, generic degree
             if Lr[j].vars == symbols(R)[1:N-1] && degree(Lr[j].elim) == DEG
@@ -189,7 +189,7 @@ function _add_genvars(
         end
     end
 
-    if characteristic(K) == 0 && check_cfs
+    if check_cfs
         (DEG, DIM), cfs_lfs = _find_generic_linear_forms(I_ext, n_gen, cfs_lfs)
     else
         DEG, DIM = hilbert_degree(I_ext), dimension(I_ext)
@@ -244,9 +244,6 @@ function _find_generic_linear_forms(
             end
         end
         candidate_stream = k -> take!(cand)
-    else
-        cand = _candidate_stream(n_nogen)
-        candidate_stream = k -> vcat(take!(cand), [-ZZ(j == k) for j in n_gen:-1:1])
     end
 
     # Running system to test subsequent linear forms
@@ -258,8 +255,21 @@ function _find_generic_linear_forms(
             val = rand(-bif_bound:bif_bound, 2)
         end
 
+        if !is_verif
+            # Fresh stream for *every* linear form we search for, only avoiding
+            # picking the exact same linear form twice
+            stream_k = _candidate_stream(n_nogen)
+            candidate_stream = _ -> begin
+                coeffs = vcat(take!(stream_k), [-ZZ(j == k) for j in n_gen:-1:1])
+                while coeffs in cfs_lfs_out # no redundant choice
+                    coeffs = vcat(take!(stream_k), [-ZZ(j == k) for j in n_gen:-1:1])
+                end
+                coeffs
+            end
+        end
+
         # 2. Find the next generic linear form
-        coeffs = _search_single_linear_form(current_F, val, DEG, DIM, k, candidate_stream, max_iter)
+        coeffs = _search_single_linear_form(current_F, val, DEG, DIM, k, candidate_stream, max_iter, F, cfs_lfs_out, bif_bound)
         push!(cfs_lfs_out, coeffs)
 
         # 3. Specialize the current linear form
@@ -270,10 +280,47 @@ function _find_generic_linear_forms(
     return (DEG, DIM), cfs_lfs_out
 end
 
+# Checks, w.r.t. the degree reverse lexicographical order (msolve's default,
+# mon_order = 0), that x_i^2 lies OUTSIDE the staircase for every variable x_i except `last_idx`.
+# This is a LITERAL port of msolve's own pre-filter.
+function _is_staircase_generic(I::Ideal{T} where T <: MPolyRingElem, last_idx::Int)
+    n = nvars(parent(I))
+    gb = groebner_basis(I, complete_reduction = false)
+
+    # Degenerate case: `I` is already the whole ring
+    any(g -> !iszero(g) && total_degree(g) == 0, gb) && return true
+
+    lead_exps = [_lead_exp_ord(g, :degrevlex) for g in gb if !iszero(g)]
+    for i in 1:n
+        i == last_idx && continue
+        e1 = zeros(Int, n); e1[i] = 1
+        e2 = zeros(Int, n); e2[i] = 2
+        any(e -> e == e1 || e == e2, lead_exps) || return false
+    end
+    return true
+end
+
+# Final validation of a linear form by computing a generic fiber with msolve
+# **Note**: this evaluation is intentionally NOT reused later to avoid collision
+# and unecessary technicalities
+function _validate_against_msolve(real_F, n, DEG, bif_bound)
+    R = parent(first(real_F))
+    val_seed = zero(ZZRingElem)
+    while iszero(val_seed)
+        val_seed = rand(-bif_bound:bif_bound)
+    end
+    LFeval = _evalvar(real_F, n, [val_seed])[1]
+    real_param = rational_parametrization(Ideal(LFeval))
+    # Degenerate/empty fiber: original ideal is empty
+    isempty(real_param.vars) && return :accept
+    degree(real_param.elim) != DEG && return :reject
+    real_param.vars != symbols(R)[1:n-1] && return :reject
+    return :accept
+end
 
 # Returns a generic linear form provided the current situation
 # It gets the next candidate from the stream and applies genericity tests
-function _search_single_linear_form(F, val, DEG, DIM, k, candidate_stream, max_iter)
+function _search_single_linear_form(F, val, DEG, DIM, k, candidate_stream, max_iter, F_orig, cfs_lfs_out, bif_bound)
     R = parent(first(F))
     n, vars = nvars(R), gens(R)
    # Take candidates from the stream until we find a match
@@ -292,14 +339,20 @@ function _search_single_linear_form(F, val, DEG, DIM, k, candidate_stream, max_i
 
             dimension(Imod) == DIM - 2*k && hilbert_degree(Imod) == DEG && return coeffs
         else
-            # --- Case B: Separating Form (2*k == DIM + 1) ---
-            new_coeffs = [ modK(i in (n-k+1, n+1)) for i in 1:n+1]
+            # --- Case B: Generic staircase + Separating Form + msolve run (2*k == DIM + 1) ---
+            _is_staircase_generic(Imod, n - k + 1) || continue
 
-            Iext, _ = _add_genvars(Imod, 1, [new_coeffs], [:_ZZ1])
-            Iext_elim = Ideal(eliminate(Iext, n))
-            Iext_elim.gb[0] = Iext_elim.gens
+            Imod_new = Ideal(change_ringvar(Imod.gens, symbols(R)[vcat(1:n-k, n-k+2:n, n-k+1)]))
 
-            hilbert_degree(Iext_elim) == DEG && return coeffs
+            Imod_elim = Ideal(eliminate(Imod_new, n-1))
+            Imod_elim.gb[0] = Imod_elim.gens
+
+            hilbert_degree(Imod_elim) == DEG || continue
+
+            # Both mod p tests passed , we need a final check on the exact system in QQ
+            real_F = vcat(F_orig, [transpose(c) * vars for c in vcat(cfs_lfs_out, [coeffs])])
+            _validate_against_msolve(real_F, n, DEG, bif_bound) == :reject && continue
+            return coeffs
         end
     end
 

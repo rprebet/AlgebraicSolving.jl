@@ -160,7 +160,6 @@ function curve_graph(I::Ideal{P}, args...; generic::Union{ZZRingElem, Int64} = 0
         Bgen = ZZ(generic < 0 ? ZZ(100) : generic)
         make_vec(i) = [j <= n ? rand(-Bgen:Bgen) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
         lfs = make_vec.(1:3)
-        u_lfs = lfs[2][1:end-3] # for zero-dim param of control pts
         p_I = curve_rational_parametrization(I, cfs_lfs = lfs, check_cfs=false)
     else
         p_I = curve_rational_parametrization(I)
@@ -169,13 +168,14 @@ function curve_graph(I::Ideal{P}, args...; generic::Union{ZZRingElem, Int64} = 0
     # 2. Process Control Ideals (C) if provided
     if length(args) > 0
         C = args[1]
-        new_RS = symbols(parent(p_I.elim))
 
         # Map C based on its input structure
-        if C isa AbstractVector
-            C_param =  [ isnothing(lfs) ? rational_parametrization(c) : param_use_lfs(c, u_lfs, new_RS[end-1]) for c in C ]
+        if C isa Ideal
+            C_param = [ param_newvars(C, p_I.vars, p_I.cfs_lfs) ]
+        elseif C isa AbstractVector
+            C_param =  [ param_newvars(c, p_I.vars, p_I.cfs_lfs) for c in C ]
         elseif C isa AbstractDict
-            C_param = Dict( k => isnothing(lfs) ? rational_parametrization(c) : param_use_lfs(c, u_lfs, new_RS[end-1]) for (k, c) in C_param)
+            C_param = Dict( k => param_newvars(c, p_I.vars, p_I.cfs_lfs) for (k, c) in C_param)
         else
            error("Control points C must be a Vector or Dict of Ideals.")
         end
@@ -258,6 +258,41 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
 
     v > 0 && println("Compute intersections with critical boxes..")
     @iftime (v > 0) LPCside, LnPCside = intersect_vertical_boxes(f, params, LBcrit, Lprecx, v=v-1)
+
+    # Manage control points that coincide with critical points
+    # NB: does not currently work for apparent singularities
+    crit_to_controls = Dict{Tuple{Int,Int}, Vector{Int}}()
+    control_keys = sort(collect(k for k in keys(LBcrit) if k < 0))
+    crit_keys = sort(collect(k for k in keys(LBcrit) if k > 0))
+    # Detect via box overlap and redirect to the right critical node in the graph
+    for neg_i in control_keys
+        aliased = falses(length(LBcrit[neg_i]))
+        for j in eachindex(LBcrit[neg_i])
+            box = LBcrit[neg_i][j]
+            for crit_i in crit_keys
+                crit_j = findfirst(cbox -> overlap_inter(box[1], cbox[1]) &&
+                                            overlap_inter(box[2], cbox[2]),
+                                    LBcrit[crit_i])
+                if !isnothing(crit_j)
+                    push!(get!(crit_to_controls, (crit_i, crit_j), Int[]), keys_C[-neg_i])
+                    aliased[j] = true
+                    break
+                end
+            end
+        end
+        # Then delete the redundant control boxes
+        if any(aliased) # control-crit overlap
+            keep = findall(!, aliased)
+            LBcrit[neg_i] = LBcrit[neg_i][keep]
+            LPCside[neg_i] = LPCside[neg_i][keep]
+            LnPCside[neg_i] = LnPCside[neg_i][keep]
+            if isempty(LBcrit[neg_i])
+                delete!(LBcrit, neg_i)
+                delete!(LPCside, neg_i)
+                delete!(LnPCside, neg_i)
+            end
+        end
+    end
 
     # Critical values and their order
     xcrit = Dict(i => [LBcrit[i][j][1] for j in eachindex(LBcrit[i])] for i in keys(LBcrit))
@@ -356,6 +391,11 @@ function _compute_graph_core(f::P, g::P, C::Dict{Int, Vector{P}};
 
             if i < 0 # Control point
                 push!(Vcon[keys_C[-i]], length(Vert))
+            end
+            if haskey(crit_to_controls, (i, j)) # Control point(s) merged into this critical point
+                for k in crit_to_controls[(i, j)]
+                    push!(Vcon[k], length(Vert))
+                end
             end
         end
 

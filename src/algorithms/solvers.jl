@@ -200,7 +200,7 @@ function _core_msolve(
     nr_gens     = length(F)
     field_char  = Int(characteristic(R))
 
-    variable_names = map(string, R.S)
+    variable_names = map(string, symbols(R))
 
     if field_char != 0
         error("At the moment we only support the rationals as ground field.")
@@ -239,7 +239,7 @@ function _core_msolve(
 
     vsymbols  = [Symbol(jl_vnames[i]) for i in 1:jl_rp_nr_vars]
     #= get possible variable permutation, ignoring additional variables=#
-    perm      = indexin(R.S, vsymbols)
+    perm      = indexin(symbols(R), vsymbols)
 
     rat_param = _get_rational_parametrization(jl_ld, jl_len,
                                               jl_cf, jl_cf_lf, jl_rp_nr_vars)
@@ -405,7 +405,7 @@ function rational_solutions(
 
     # ge(t variable permutation
     R = parent(first(I.gens))
-    perm = indexin(R.S, param_t.vars)
+    perm = indexin(symbols(R), param_t.vars)
     nvars = length(param_t.vars)
     lpol = filter(l->degree(l) == 1, first.(collect(factor(param_t.elim))))
     nb = length(lpol)
