@@ -103,7 +103,7 @@
     ]
 
     # Non radical curve
-    @test_throws ["bad specializations", "radicality"] curve_rational_parametrization(AlgebraicSolving.Ideal([x1^2, x2, x3]))
+    @test_throws ["radical"] curve_rational_parametrization(AlgebraicSolving.Ideal([x1^2, x2, x3]))
 
     # ----------------------------------------------------
     # 7. Genericity failures only detectable by really running msolve

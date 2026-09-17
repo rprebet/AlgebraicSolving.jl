@@ -35,29 +35,65 @@ julia> curve_rational_parametrization(I, cfs_lfs=[[-3,2,2,-1,-2], [1,4,-3,2,-1]]
 AlgebraicSolving.CurveRationalParametrization([:x1, :x2, :x3, :_Z2, :_Z1], Vector{ZZRingElem}[[-3, 2, 2, -1, -2], [1, 4, -3, 2, -1]], 244//181*x^2 - 148//543*x*y + 532//543*x + y^2 + 182//181*y - 49//543, -148//543*x + 2*y + 182//181, QQMPolyRingElem[440//543*x^2 - 580//543*x*y - 44//543*x + 136//181*y + 112//543, 80//181*x^2 + 320//543*x*y + 122//181*x + 81//181*y + 49//543, -460//543*x^2 - 10//181*x*y - 418//543*x + 32//181*y + 56//181])
 ```
 """
+function curve_rational_parametrization(I::Ideal{<:QQMPolyRingElem}; kwargs...)
+    return curve_rational_parametrization([I]; kwargs...)[1]
+end
+
+@doc Markdown.doc"""
+    curve_rational_parametrization(curves::Vector{<:Ideal{<:QQMPolyRingElem}}, <keyword arguments>)
+
+Vector-of-curves version of `curve_rational_parametrization`: finds a SINGLE
+set of linear forms (`cfs_lfs`, either given or searched for jointly, as
+with a single curve) valid for EVERY curve in `curves` at once, then returns
+one `CurveRationalParametrization` per curve (also cached on each curve's
+own `.rat_param`, in the same order), all sharing those forms -- exactly
+what an arrangement of several curves needs to compute their intersections
+and merge their graphs consistently (see `curve_arrangement_graph`).
+
+`extra_form::Bool=false`: if `cfs_lfs` is not given, search for a 3rd linear
+form in addition to the usual "x, y" pair -- found (or, if `cfs_lfs` has 3
+entries, verified) AFTER them, distinct from both, and never referenced by
+either (see `_add_genvars_extra`). Used to populate the extra coordinate
+`curve_graph` needs to resolve apparent singularities (`p.param[end]`).
+"""
 function curve_rational_parametrization(
-        I::Ideal{<:QQMPolyRingElem};                                                        # input generators
-        info_level::Int=0,                                                                  # info level for print outs
+        curves::Vector{<:Ideal{<:QQMPolyRingElem}};                                    # input generators, sharing the SAME linear forms
+        info_level::Int=0,                                                             # info level for print outs
         cfs_lfs::Union{Vector{<:Vector{<:Union{Int,ZZRingElem}}}, Nothing} = nothing,  # coeffs of linear forms
-        nr_thrds::Int=1,                                                                    # number of threads (msolve)
-        check_cfs::Bool = true
+        nr_thrds::Int=1,                                                               # number of threads (msolve)
+        check_cfs::Bool = true,
+        extra_form::Bool = false                                                      # search a 3rd, distinct form (see `_add_genvars_extra`)
     )
-    @assert nvars(parent(I)) >= 2 "I must be defined in a ring with at least 2 variables"
+    @assert !isempty(curves) "Must provide at least one curve."
+    @assert all(nvars(parent(I)) >= 2 for I in curves) "Each curve must be defined in a ring with at least 2 variables"
     if !isnothing(cfs_lfs)
         @assert length(cfs_lfs) >= 2 "When specified, at least two linear forms must be provided"
         cfs_lfs = Vector{ZZRingElem}[[ ZZRingElem(c) for c in cfs_lf] for cfs_lf in cfs_lfs] # Convert Int64 into ZZRingElem
     end
 
     info_level > 0 && println("Compute generic linear forms...")
-    Inew, cfs_lfs = _add_genvars(I, isnothing(cfs_lfs) ? 2 : length(cfs_lfs), cfs_lfs, check_cfs = check_cfs)
+    n_gen = isnothing(cfs_lfs) ? (extra_form ? 3 : 2) : length(cfs_lfs)
+    news, cfs_lfs = _add_genvars(curves, n_gen, cfs_lfs, check_cfs = check_cfs)
 
+    return [ _curve_rational_parametrization_ext(I, Inew, cfs_lfs; info_level, nr_thrds)
+             for (I, Inew) in zip(curves, news) ]
+end
+
+# Given the original ideal `I` and its already-embedded/pinned version
+# `Inew` (`n_gen` new variables, with the linear-form equations already
+# added, e.g. by `_add_genvars`, and sharing `cfs_lfs` with every other
+# curve `curve_rational_parametrization` was called with, if any), computes
+# and caches (`I.rat_param`) the actual bivariate rational parametrization
+# -- the interpolation loop over `_Z1` evaluations, resilient to "bad"
+# specialization points.
+function _curve_rational_parametrization_ext(I::Ideal, Inew::Ideal, cfs_lfs; info_level::Int=0, nr_thrds::Int=1)
     if Inew.dim == -1
         T = polynomial_ring(QQ, [:x, :y])[1]
         I.dim = -1
         I.rat_param = CurveRationalParametrization(Symbol[], Vector{ZZRingElem}[], T(-1), T(-1), QQMPolyRingElem[])
         return I.rat_param
     end
-    @assert Inew.dim == 1 "I must define a curve or an empty set"
+    @assert Inew.dim == 1 "Input ideal(s) must define a curve or an empty set"
 
     R = parent(Inew)
     N = nvars(R)
@@ -147,15 +183,12 @@ function curve_rational_parametrization(
 end
 
 
-# Return F in a polynomial ring with n_gen new variables
-# + newvars linear forms provided by coefficients in cfs_lfs or generic ones internally computed
-function _add_genvars(
-    I::Ideal{<:MPolyRingElem},
+# Embeds I into a ring with n_gen extra free variables
+function _embed_extra_vars(
+    I::Ideal{T},
     n_gen::Int,
-    cfs_lfs::Union{Vector{<:Vector{<:RingElem}}, Nothing},
-    genS::Vector{Symbol} = Symbol[];
-    check_cfs::Bool = true
-)
+    genS::Vector{Symbol} = Symbol[]
+) where T <: MPolyRingElem
     F = I.gens
     R = parent(I)
     K, n = base_ring(R), nvars(R)
@@ -166,8 +199,8 @@ function _add_genvars(
     newS = vcat(symbols(R), genS)
     R_ext, all_vars = polynomial_ring(K, newS)
 
-    # Inject F in this new ring efficiently using evaluation
-    F_ext = Vector{MPolyRingElem}(undef, length(F))
+    # Inject F in this new ring efficiently by reconstruction
+    F_ext = Vector{T}(undef, length(F))
     ctx = MPolyBuildCtx(R_ext)
     new_e = zeros(Int, n + n_gen) # Pre-allocated buffer
 
@@ -178,7 +211,33 @@ function _add_genvars(
         end
         F_ext[i] = finish(ctx)
     end
-    I_ext = Ideal(F_ext)
+
+    return Ideal(F_ext)
+end
+
+# Embeds I with n_gen new variables (`_embed_extra_vars`) and adds the
+# n_gen equations Li(X) - Zi = 0 pinning each new variable to a generic linear
+# form: either given via `cfs_lfs`, or found via incremental process.
+# cfs_lfs is checked to be generic iff `check_cfs==true`.
+function _add_genvars(
+    ideals::Vector{Ideal{T}},
+    n_gen::Int,
+    cfs_lfs::Union{Vector{<:Vector{<:RingElem}}, Nothing},
+    genS::Vector{Symbol} = Symbol[];
+    check_cfs::Bool = true,
+    excluded::Vector{Vector{ZZRingElem}} = Vector{ZZRingElem}[],
+    points::Vector{<:Ideal} = Ideal[]
+) where T <:MPolyRingElem
+    # 3 forms on a (dimension-1) curve can never be validated all at once
+    # (see `_find_generic_linear_forms`'s own dimension assertion) -- split
+    # into "the 2 standard ones, then 1 extra" instead (see
+    # `_add_genvars_extra`).
+    if n_gen == 3 && check_cfs && isempty(genS)
+        return _add_genvars_extra(ideals, cfs_lfs; points=points)
+    end
+
+    n = nvars(parent(ideals[1]))
+    ideals_ext = [_embed_extra_vars(I, n_gen, genS) for I in ideals]
 
     # Find generic linear forms
     if !isnothing(cfs_lfs)
@@ -190,94 +249,212 @@ function _add_genvars(
     end
 
     if check_cfs
-        (DEG, DIM), cfs_lfs = _find_generic_linear_forms(I_ext, n_gen, cfs_lfs)
+        (DEGs, DIMs), cfs_lfs = _find_generic_linear_forms(ideals_ext, n_gen, cfs_lfs; excluded=excluded, points=points)
     else
-        DEG, DIM = hilbert_degree(I_ext), dimension(I_ext)
+        DEGs = Vector{Int64}(undef, length(ideals))
+        DIMs = Vector{Int64}(undef, length(ideals))
+        uZ = one(ZZRingElem)
+        for (i, I) in enumerate(ideals_ext)
+            F = I.gens
+            lucky_prime = first(_generate_lucky_primes(F, uZ<<30, (uZ<<31)-1, 1))
+            Itest = Ideal(change_base_ring.(Ref(GF(lucky_prime)), F))
+            DEGs[i], DIMs[i] = hilbert_degree(Itest), dimension(Itest)
+        end
     end
 
     # Add equations Li(X) - Zi = 0
-    append!(F_ext, [transpose(c) * all_vars for c in cfs_lfs])
-    Inew = Ideal(F_ext)
-    Inew.deg, Inew.dim = DEG, max(DIM - n_gen, -1)
+    all_vars = gens(parent(ideals_ext[1]))
+    lf = [transpose(c) * all_vars for c in cfs_lfs]
+    ideals_new = [ Ideal(vcat(I.gens, lf)) for I in ideals_ext ]
+    for i in 1:length(ideals_new)
+        ideals_new[i].deg = DEGs[i]
+        ideals_new[i].dim = max(DIMs[i] - n_gen, -1)
+    end
 
-    return Inew, cfs_lfs
+    return ideals_new, cfs_lfs
 end
 
-# Computes/Tests n_gen sequential generic linear forms
-# so that the last n_gen variables are in generic positions
-# w.r.t each other, starting from the last one.
-function _find_generic_linear_forms(
-        I::Ideal{<:MPolyRingElem},
-        n_gen::Int,
-        cfs_lfs::Union{Vector{Vector{ZZRingElem}}, Nothing}
-    )
-    R, F = parent(I), I.gens
-    n, vars = nvars(R), gens(R)
-    n_nogen = n - n_gen
-    cfs_lfs_out = Vector{Vector{ZZRingElem}}()
-    uZ = one(ZZRingElem)
+# Single-ideal version
+function _add_genvars(I::Ideal{T}, args...; kwargs...) where T <:MPolyRingElem
+    Inew, cfs_lfs = _add_genvars([I], args...; kwargs...)
+    return Inew[1], cfs_lfs
+end
 
-    # 1. Compute the degree of the system
-    lucky_prime = first(_generate_lucky_primes(F, uZ<<30, (uZ<<31)-1, 1))
-    if haskey(I.gb, 0)
-        DEG, DIM = hilbert_degree(I), dimension(I)
-    else
-        Itest = Ideal(change_base_ring.(Ref(GF(lucky_prime)), F))
-        DEG, DIM = hilbert_degree(Itest), dimension(Itest)
+# Handles n_gen == 3 specially: the first two forms are found (or verified)
+# exactly as the standard n_gen = 2 case -- they never get to see the third
+# -- and the third is chosen (or verified) AFTERWARDS, against the very
+# same curves, using the exact same genericity test as the very first form
+# (case A: a curve always has dimension 1, so adding just one more free
+# variable never violates `_find_generic_linear_forms`'s dimension budget,
+# unlike asking for all 3 at once). Like the first two, it is built purely
+# from the original coordinates (never from x or y themselves, so x and y
+# never end up expressed in terms of it), and is explicitly required to
+# differ from both of them (`excluded`).
+function _add_genvars_extra(
+        ideals::Vector{<:Ideal{T}},
+        cfs_lfs::Union{Vector{<:Vector{<:RingElem}}, Nothing};
+        points::Vector{<:Ideal} = Ideal[]
+    ) where T <: MPolyRingElem
+    n = nvars(parent(ideals[1]))
+
+    # Normalize to raw (length n) coefficients up front, whether given
+    # trimmed or already padded (e.g. round-tripped from a previous call's
+    # own `cfs_lfs` output) -- the 2- and 1-form sub-calls below each redo
+    # their OWN padding, matching their OWN (smaller) n_gen.
+    if !isnothing(cfs_lfs)
+        @assert length(cfs_lfs) == 3 "Expected 3 linear forms, got $(length(cfs_lfs))"
+        @assert all(length(c) in [n, n + 3] for c in cfs_lfs) "Linear forms must have $n or $(n + 3) coefficients"
+        cfs_lfs = [ ZZRingElem.(c[1:n]) for c in cfs_lfs ]
     end
-    @assert DIM < 0 || 2*n_gen < DIM + 2 "Too many generic linear forms asked > dim + 1"
 
-    # 2. Compute a bound for generic specialization values
-    # Bound on bifurcation set degree (e.g., Jelonek & Kurdyka, 2005)
-    max_deg = maximum(f -> total_degree(f), F; init=1)
-    bif_bound = uZ << (n * floor(Int, log2(max_deg)) + 1)
+    cfs_lfs12 = isnothing(cfs_lfs) ? nothing : cfs_lfs[1:2]
+    ideals_xy, cfs_lfs12 = _add_genvars(ideals, 2, cfs_lfs12; check_cfs=true, points=points)
 
-        # 3. Setup stream and iteration limits depending on the mode
+    cfs_lfs3 = isnothing(cfs_lfs) ? nothing : [cfs_lfs[3]]
+    excluded = Vector{ZZRingElem}[ c[1:n] for c in cfs_lfs12 ]
+    _, cfs_lfs3 = _add_genvars(ideals, 1, cfs_lfs3, [:_Zextra]; check_cfs=true, excluded=excluded)
+    z = only(cfs_lfs3)[1:n]
+
+    # Re-embed the ORIGINAL ideals with all 3 (now validated) forms at
+    # once, in the traditional [orig..., z, y, x] ring layout -- no further
+    # checks or variable reshuffling needed, since all 3 coefficient
+    # vectors already live purely on the original coordinates, and z, being
+    # chosen last, cannot have influenced x or y. Note `cfs_lfs_out[i]`
+    # pins the LINEAR FORM to the i-th new variable counting from the END
+    # (i.e. cfs_lfs_out[1] -> x, [2] -> y, [3] -> z), independently of the
+    # ring layout above -- see the padding convention in `_add_genvars`.
+    cfs_lfs_out = [cfs_lfs12[1][1:n], cfs_lfs12[2][1:n], z]
+    ideals_ext = [ _embed_extra_vars(I, 3, [:_Zextra, :_Z2, :_Z1]) for I in ideals ]
+    all_vars = gens(parent(ideals_ext[1]))
+    padded = [ vcat(c, [-ZZ(j == i) for j in 3:-1:1]) for (i, c) in enumerate(cfs_lfs_out) ]
+    lf = [ transpose(c) * all_vars for c in padded ]
+    ideals_new = [ Ideal(vcat(I.gens, lf)) for I in ideals_ext ]
+    for i in eachindex(ideals_new)
+        # z is a derived, redundant coordinate: it changes neither the
+        # curve's dimension nor its degree.
+        ideals_new[i].deg, ideals_new[i].dim = ideals_xy[i].deg, ideals_xy[i].dim
+    end
+
+    return ideals_new, padded
+end
+
+
+# Computes/tests n_gen sequential generic linear forms so that the last
+# n_gen variables are in generic position (w.r.t. each other, starting from
+# the last one) SIMULTANEOUSLY for every ideal in `ideals`
+# -- each of which must already live in a ring with n_gen extra (free,
+# unconstrained) variables appended (see `_embed_extra_vars`)
+#-- ALL IN THE SAME RING (same total number of variables).
+
+# Two modes:
+# - search (`cfs_lfs === nothing`): draws candidates from `_candidate_stream`
+#   and accepts the first one valid for EVERY ideal, one linear form at a
+#   time;
+# - verification (`cfs_lfs` given): checks that the already-fixed forms are
+#   generic enough for EVERY ideal.
+function _find_generic_linear_forms(
+        ideals::Vector{<:Ideal{<:MPolyRingElem}},
+        n_gen::Int,
+        cfs_lfs::Union{Vector{Vector{ZZRingElem}}, Nothing} = nothing;
+        excluded::Vector{Vector{ZZRingElem}} = Vector{ZZRingElem}[],
+        points::Vector{<:Ideal} = Ideal[]
+    )
+    n = nvars(parent(ideals[1]))
+    n_nogen = n - n_gen
+    uZ = one(ZZRingElem)
     is_verif = !isnothing(cfs_lfs)
     max_iter = is_verif ? 1 : 10000
 
-    if is_verif
-        # Wrap the provided linear forms into a sequential stream
-        cand = Channel{Vector{ZZRingElem}}() do ch
-            for coeffs in cfs_lfs
-                put!(ch, coeffs)
-            end
+    # Per-ideal context: its own degree/dimension, bifurcation bound
+    # and a mutable "probe" system (`:F`) that accumulates one
+    # evaluation constraint per accepted form.
+    ctxs = map(ideals) do I
+        F = I.gens
+        lucky_prime = first(_generate_lucky_primes(F, uZ<<30, (uZ<<31)-1, 1))
+        if haskey(I.gb, 0)
+            DEG, DIM = hilbert_degree(I), dimension(I)
+        else
+            Itest = Ideal(change_base_ring.(Ref(GF(lucky_prime)), F))
+            DEG, DIM = hilbert_degree(Itest), dimension(Itest)
         end
-        candidate_stream = k -> take!(cand)
+        if DIM > 0
+            @assert DIM == n_gen + 1 "Input ideal(s) must define curves or empty sets"
+            @assert 2*n_gen < DIM + 2 "Too many generic linear forms asked > dim + 1"
+        end
+        # Bound on bifurcation set degree (e.g., Jelonek & Kurdyka, 2005)
+        max_deg = maximum(f -> total_degree(f), F; init=1)
+        bif_bound = uZ << (n * floor(Int, log2(max_deg)) + 1)
+        # The data
+        Dict(:F0 => F, :F => copy(F), :lucky_prime => lucky_prime,
+             :DEG => DEG, :DIM => DIM, :bif_bound => bif_bound)
     end
 
-    # Running system to test subsequent linear forms
-    current_F = copy(F)
+    # 0-dim ideals (control/intersection points): only the case B test below
+    # applies, and only once every form is fixed
+    pctxs = Tuple{Ideal, Int}[]
+    for I in points
+        pr = first(_generate_lucky_primes(I.gens, uZ<<30, (uZ<<31)-1, 1))
+        Imod = Ideal(change_base_ring.(Ref(GF(pr)), I.gens))
+        dimension(Imod) > 0 && continue
+        push!(pctxs, (_embed_extra_vars(I, n_gen), hilbert_degree(Imod)))
+    end
+
+    cfs_lfs_out = Vector{Vector{ZZRingElem}}()
+
     for k in 1:n_gen
-        # 1. Compute a generic specialization value
-        val = [ZZ(), ZZ()]
-        while iszero(val[1]) || is_divisible_by(val[1], lucky_prime) || is_divisible_by(val[2], lucky_prime)
-            val = rand(-bif_bound:bif_bound, 2)
-        end
-
-        if !is_verif
-            # Fresh stream for *every* linear form we search for, only avoiding
-            # picking the exact same linear form twice
-            stream_k = _candidate_stream(n_nogen)
-            candidate_stream = _ -> begin
-                coeffs = vcat(take!(stream_k), [-ZZ(j == k) for j in n_gen:-1:1])
-                while coeffs in cfs_lfs_out # no redundant choice
-                    coeffs = vcat(take!(stream_k), [-ZZ(j == k) for j in n_gen:-1:1])
-                end
-                coeffs
+        # One fixed generic evaluation point per ideal for this step.
+        vals = map(ctxs) do c
+            val = [ZZ(), ZZ()]
+            while iszero(val[1]) || is_divisible_by(val[1], c[:lucky_prime]) || is_divisible_by(val[2], c[:lucky_prime])
+                val = rand(-c[:bif_bound]:c[:bif_bound], 2)
             end
+            val
         end
+        # checks that cand is a valid lf for all ideals, and for the points
+        valid_for_all(cand) =
+            all(eachindex(ctxs)) do idx
+                c = ctxs[idx]
+                _is_valid_linear_form(c[:F], cand, vals[idx], c[:DEG], c[:DIM], k, c[:F0], cfs_lfs_out, c[:bif_bound])
+            end &&
+            (k < n_gen ||
+             all(pc -> _is_valid_points_form(pc[1], pc[2], vcat(cfs_lfs_out, [cand])), pctxs))
 
-        # 2. Find the next generic linear form
-        coeffs = _search_single_linear_form(current_F, val, DEG, DIM, k, candidate_stream, max_iter, F, cfs_lfs_out, bif_bound)
+        # Dictates how the linear form are selected. `excluded` refers to
+        # the UNDERLYING (pre-padding) coordinates -- e.g. forms fixed by a
+        # DIFFERENT n_gen search earlier on (see `_add_genvars_extra`) --
+        # so it is compared against `coeffs[1:n_nogen]`/`base`, not against
+        # the padded candidate itself (which pins a slot specific to THIS
+        # search and would never structurally match).
+        if is_verif
+            coeffs = cfs_lfs[k]
+            coeffs[1:n_nogen] in excluded && error("Provided linear form number $k is not distinct from an excluded one.")
+            valid_for_all(coeffs) || error("Provided linear form number $k, failed the genericity test.")
+        else
+            stream_k = _candidate_stream(n_nogen)
+            coeffs = nothing
+            for (attempt, base) in enumerate(stream_k)
+                attempt > max_iter && break
+                base in excluded && continue # no redundant choice
+                cand = vcat(base, [-ZZ(j == k) for j in n_gen:-1:1])
+                cand in cfs_lfs_out && continue # no redundant choice
+                if valid_for_all(cand)
+                    coeffs = cand
+                    break
+                end
+            end
+            isnothing(coeffs) && error("Failed to find a generic linear form after $max_iter tests.")
+        end
         push!(cfs_lfs_out, coeffs)
 
-        # 3. Specialize the current linear form
-        L = sum(c * v for (c, v) in zip(coeffs, vars))
-        push!(current_F, L, val[1] * vars[n - k + 1] + val[2])
+        # Update every ideal's own running probe system with this form.
+        for (idx, c) in enumerate(ctxs)
+            cvars = gens(parent(first(c[:F])))
+            L = sum(coeffs[i] * cvars[i] for i in eachindex(coeffs))
+            push!(c[:F], L, vals[idx][1] * cvars[n - k + 1] + vals[idx][2])
+        end
     end
 
-    return (DEG, DIM), cfs_lfs_out
+    return ([c[:DEG] for c in ctxs], [c[:DIM] for c in ctxs]), cfs_lfs_out
 end
 
 # Checks, w.r.t. the degree reverse lexicographical order (msolve's default,
@@ -312,54 +489,66 @@ function _validate_against_msolve(real_F, n, DEG, bif_bound)
     LFeval = _evalvar(real_F, n, [val_seed])[1]
     real_param = rational_parametrization(Ideal(LFeval))
     # Degenerate/empty fiber: original ideal is empty
-    isempty(real_param.vars) && return :accept
-    degree(real_param.elim) != DEG && return :reject
-    real_param.vars != symbols(R)[1:n-1] && return :reject
-    return :accept
+    isempty(real_param.vars) && return true
+
+    @assert degree(real_param.elim) == DEG "Input ideal(s) must be radical"
+    return real_param.vars == symbols(R)[1:n-1]
 end
 
-# Returns a generic linear form provided the current situation
-# It gets the next candidate from the stream and applies genericity tests
-function _search_single_linear_form(F, val, DEG, DIM, k, candidate_stream, max_iter, F_orig, cfs_lfs_out, bif_bound)
+# Case B test on a 0-dim ideal `Iext` of `DEG` points, embedded and pinned
+# by the forms `cfs`: the first form (i.e. the last ring variable, the one
+# `param_newvars` parametrizes by) must separate the points.
+function _is_valid_points_form(Iext::Ideal, DEG::Int, cfs::Vector{Vector{ZZRingElem}})
+    vars = gens(parent(Iext))
+    n = length(vars)
+    F = vcat(Iext.gens, [transpose(c) * vars for c in cfs])
+    pr = first(_generate_lucky_primes(F, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
+    Imod = Ideal(change_base_ring.(Ref(GF(pr)), F))
+
+    _is_staircase_generic(Imod, n) || return false
+    Imod_elim = Ideal(eliminate(Imod, n-1))
+    Imod_elim.gb[0] = Imod_elim.gens
+    return hilbert_degree(Imod_elim) == DEG
+end
+
+# The 3 linear forms used by the curve graph routines: found/validated on
+# every curve and every 0-dim ideal of `points`, with no parametrization.
+function _graph_linear_forms(curves::Vector{<:Ideal{T}},
+                             points::Vector{<:Ideal{T}} = Ideal{T}[]) where T <: MPolyRingElem
+    _, cfs_lfs = _add_genvars(collect(Ideal{T}, curves), 3, nothing; points=points)
+    return cfs_lfs
+end
+
+# Check whether `coeffs` is a generic enough linear form (the k-th one
+# to be fixed) for the ideal whose running probe system is `F`.
+function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out, bif_bound)
     R = parent(first(F))
     n, vars = nvars(R), gens(R)
-   # Take candidates from the stream until we find a match
-    for _ in 1:max_iter
-        coeffs = candidate_stream(k)
 
-        FL = vcat(F, sum(coeffs[i] * vars[i] for i in 1:n))
-        Feval = vcat(FL, val[1] * vars[n - k + 1] + val[2])
+    FL = vcat(F, sum(coeffs[i] * vars[i] for i in 1:n))
+    Feval = vcat(FL, val[1] * vars[n - k + 1] + val[2])
 
-        lucky_prime = first(_generate_lucky_primes(Feval, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
-        modK = GF(lucky_prime)
-        Imod = Ideal(change_base_ring.(Ref(modK), 2*k <= DIM ? Feval : FL))
+    lucky_prime = first(_generate_lucky_primes(Feval, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
+    modK = GF(lucky_prime)
+    Imod = Ideal(change_base_ring.(Ref(modK), 2*k <= DIM ? Feval : FL))
 
-        if 2*k <= DIM
-            # --- Case A: Projection Form ---
-
-            dimension(Imod) == DIM - 2*k && hilbert_degree(Imod) == DEG && return coeffs
-        else
-            # --- Case B: Generic staircase + Separating Form + msolve run (2*k == DIM + 1) ---
-            _is_staircase_generic(Imod, n - k + 1) || continue
-
-            Imod_new = Ideal(change_ringvar(Imod.gens, symbols(R)[vcat(1:n-k, n-k+2:n, n-k+1)]))
-
-            Imod_elim = Ideal(eliminate(Imod_new, n-1))
-            Imod_elim.gb[0] = Imod_elim.gens
-
-            hilbert_degree(Imod_elim) == DEG || continue
-
-            # Both mod p tests passed , we need a final check on the exact system in QQ
-            real_F = vcat(F_orig, [transpose(c) * vars for c in vcat(cfs_lfs_out, [coeffs])])
-            _validate_against_msolve(real_F, n, DEG, bif_bound) == :reject && continue
-            return coeffs
-        end
-    end
-
-    if max_iter == 1
-        error("Provided linear form number $k, failed the genericity test.")
+    if 2*k <= DIM
+        # --- Case A: Projection Form ---
+        return dimension(Imod) == DIM - 2*k && hilbert_degree(Imod) == DEG
     else
-        error("Failed to find a generic linear form after $max_iter tests.")
+        # --- Case B: Generic staircase + Separating Form + msolve run (2*k == DIM + 1) ---
+        _is_staircase_generic(Imod, n - k + 1) || return false
+
+        Imod_new = Ideal(change_ringvar(Imod.gens, symbols(R)[vcat(1:n-k, n-k+2:n, n-k+1)]))
+
+        Imod_elim = Ideal(eliminate(Imod_new, n-1))
+        Imod_elim.gb[0] = Imod_elim.gens
+
+        hilbert_degree(Imod_elim) == DEG || return false
+
+        # Both mod p tests passed , we need a final check on the exact system in QQ
+        real_F = vcat(F_orig, [transpose(c) * vars for c in vcat(cfs_lfs_out, [coeffs])])
+        return _validate_against_msolve(real_F, n, DEG, bif_bound) == true
     end
 end
 

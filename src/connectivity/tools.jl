@@ -59,7 +59,7 @@ end
 
 # We compute a zero-dim param of I w.r.t. the last variable after adding new variables
 # and equally many provided linear forms.
-function param_newvars(I::Ideal, new_S::Vector{Symbol}, cfs_lfs::Vector{Vector{T}} where T<: RingElem)
+function param_newvars(I::Ideal, new_S::Vector{Symbol}, cfs_lfs::Vector{Vector{T}} where T<: RingElem; check::Bool=true)
     R = parent(I)
     _, new_V = polynomial_ring(base_ring(R), new_S)
 
@@ -68,7 +68,7 @@ function param_newvars(I::Ideal, new_S::Vector{Symbol}, cfs_lfs::Vector{Vector{T
 
     Pnew = rational_parametrization(I_new)
 
-    @assert degree(Pnew.elim) == 0 || Pnew.vars == new_S "Provided linear form is not generic : ($(Pnew.vars) != $(new_S))"
+    @assert !check || degree(Pnew.elim) == 0 || Pnew.vars == new_S "Provided linear form is not generic : ($(Pnew.vars) != $(new_S))"
 
     return Pnew
 end

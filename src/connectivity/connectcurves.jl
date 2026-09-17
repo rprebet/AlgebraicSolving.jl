@@ -7,40 +7,61 @@ include("isolateboxes.jl")
 include("graph.jl")
 include("plots.jl")
 
+_is_generic_position_error(e) = occursin("generic", lowercase(sprint(showerror, e)))
+
 @doc Markdown.doc"""
-    curve_arrangement_graph(curves::Vector{Ideal}; generic::Union{ZZRingElem, Int64}=0, outf=true, v=0, kwargs...)
+    curve_arrangement_graph(curves::Vector{Ideal}; generic::Union{ZZRingElem, Int64}=0, outf=true, v=0, max_attempts=20, kwargs...)
 
 Computes the combined planar graph of an arrangement of multiple space curves in complete intersection.
 Automatically computes the mutual intersections between all curves and guarantees
 they are projected using a shared, unified linear form.
+
+If `generic == 0` (default), the 3 shared linear forms are computed first
+by `_graph_linear_forms`, validated on every curve and on every
+intersection/query point ideal, and then used (unchecked) for all
+parametrizations. If `generic != 0`, 3 random forms are drawn instead
+(absolute coefficient size `generic` if positive, `5` else) and retried up
+to `max_attempts` times (default `20`) on a genericity failure. Neither
+guarantees `_compute_graph_core`'s own, separate requirement.
 """
-function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic::Union{ZZRingElem, Int64} = 0, outf=true, v=0, kwargs...) where {P <: QQMPolyRingElem}
+function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic::Union{ZZRingElem, Int64} = 0, outf=true, v=0, max_attempts::Int=20, kwargs...) where {P <: QQMPolyRingElem}
     N = length(curves)
     @assert N > 0 "Must provide at least one curve."
-
-    R = parent(curves[1])
-    n = nvars(R)
     typeout = outf ? Float64 : QQFieldElem
 
+    # Point ideals the shared forms must also be valid for
+    Icons = isnothing(Icon) ? Ideal{P}[] : (Icon isa Vector ? Icon : [Icon])
+    I_inter = Dict{Set{Int}, Ideal{P}}(Set((i,j)) => Ideal(vcat(curves[i].gens, curves[j].gens)) for i in 1:N for j in i+1:N)
+    I_con = Dict{Tuple{Int,Int}, Ideal{P}}((i,k) => Ideal(vcat(curves[i].gens, C.gens)) for i in 1:N for (k,C) in enumerate(Icons))
 
-    # 1. Establish the Shared Projection Context
-    # We MUST generate the linear forms here and force all curves/intersections to use them.
+    p_curves = nothing
     if generic != 0
-        Bgen = ZZ(generic < 0 ? 100 : generic)
-        make_vec(i) = [j <= n ? rand(-Bgen:Bgen) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
-        cfs_lfs = make_vec.(1:3)
+        n = nvars(parent(curves[1]))
+        Bgen = ZZ(generic > 0 ? generic : 5)
+        for attempt in 1:max_attempts
+            cfs_lfs = [ ZZRingElem[rand(-Bgen:Bgen) for _ in 1:n] for _ in 1:3 ]
+            try
+                p_curves = curve_rational_parametrization(curves; cfs_lfs=cfs_lfs, check_cfs=false)
+                break
+            catch e
+                (attempt == max_attempts || !_is_generic_position_error(e)) && rethrow()
+                v > 0 && println("Shared linear forms not generic enough for this arrangement (attempt $attempt/$max_attempts), retrying with a fresh random choice...")
+                Bgen *= generic > 0 ? 1 : 10
+            end
+        end
     else
-        cfs_lfs = [ [ j == n-3+i ? -one(ZZRingElem) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3 ] for i in 1:3 ]
+        v > 0 && println("Compute shared linear forms...")
+        cfs_lfs = _graph_linear_forms(curves, vcat(collect(values(I_inter)), collect(values(I_con))))
+        p_curves = curve_rational_parametrization(curves; cfs_lfs=cfs_lfs, check_cfs=false)
     end
+    chk = generic != 0
 
-    # 3. Compute Intersections and Build Individual Graphs
     graphs = Vector{CurveGraph{typeout}}(undef, N)
     p_inter = Dict{Set{Int}, RationalParametrization}()
 
     for i in 1:N
         v > 0 && println("Compute graph of curve number $i/$N...")
-
-        p_I = curve_rational_parametrization(curves[i], cfs_lfs=cfs_lfs, check_cfs=false)
+        p_I = p_curves[i]
 
         # Control pts are intersections with all other curves; use Dict to avoid re-computation
         C_i = Dict{Int, RationalParametrization}( j => p_inter[Set((i,j))] for j in 1:i-1)
@@ -52,9 +73,9 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic
             end
         else
             for j in i+1:N
-                I_ij = vcat(curves[i].gens, curves[j].gens) |> Ideal
+                I_ij = I_inter[Set((i,j))]
                 try
-                    C_i[j] = param_newvars(I_ij, p_I.vars, cfs_lfs)
+                    C_i[j] = param_newvars(I_ij, p_I.vars, p_I.cfs_lfs; check=chk)
                 catch e
                     if e isa ErrorException &&
                         e.msg == "Dimension of ideal is greater than zero, no solutions provided."
@@ -67,18 +88,15 @@ function curve_arrangement_graph(curves::Vector{Ideal{P}}, Icon=nothing; generic
             end
 
             # Attach User Query / Control Points with Non-Positive Keys (<= 0)
-            if !isnothing(Icon)
-                Icons = Icon isa Vector ? Icon : [Icon]
-                for (k, Con) in enumerate(Icons)
-                    C_i[-k] = param_newvars(Ideal(vcat(curves[i].gens, Con.gens)), p_I.vars, cfs_lfs)
-                end
+            for k in eachindex(Icons)
+                C_i[-k] = param_newvars(I_con[(i,k)], p_I.vars, p_I.cfs_lfs; check=chk)
             end
         end
 
         graphs[i] = curve_graph(p_I, C_i; outf=outf, v=v-1, kwargs...)
     end
 
-    # 4. Merge the graph according to their intersections
+    # Merge the graphs according to their intersections
     return merge_graphs(graphs)
 end
 
@@ -152,30 +170,28 @@ function curve_graph(I::Ideal{P}, args...; generic::Union{ZZRingElem, Int64} = 0
         return CurveGraph{typeout}(Vert, Tuple{Int, Int}[], Vcon)
     end
 
-    # Pre-processing: Generic Position Shear
-    # We explicitly define linear forms if generic != 0 to share them with C
+    C = length(args) > 0 ? args[1] : nothing
+    Cpts = isnothing(C) ? Ideal{P}[] : (C isa Ideal ? [C] : Ideal{P}[c for c in values(C) if c isa Ideal])
+
     v > 0 && println("Compute curve rational parametrization...")
-    lfs = nothing
-    if generic != 0
-        Bgen = ZZ(generic < 0 ? ZZ(100) : generic)
-        make_vec(i) = [j <= n ? rand(-Bgen:Bgen) : (j == n+i ? one(ZZRingElem) : zero(ZZRingElem)) for j in 1:n+3]
-        lfs = make_vec.(1:3)
-        p_I = curve_rational_parametrization(I, cfs_lfs = lfs, check_cfs=false)
+    if generic == 0
+        lfs = _graph_linear_forms([I], Cpts)
     else
-        p_I = curve_rational_parametrization(I)
+        Bgen = ZZ(generic > 0 ? generic : 100)
+        lfs = [ ZZRingElem[rand(-Bgen:Bgen) for _ in 1:n] for _ in 1:3 ]
     end
+    p_I = curve_rational_parametrization(I, cfs_lfs = lfs, check_cfs=false)
+    chk = generic != 0
 
-    # 2. Process Control Ideals (C) if provided
-    if length(args) > 0
-        C = args[1]
-
+    # Process Control Ideals (C) if provided
+    if !isnothing(C)
         # Map C based on its input structure
         if C isa Ideal
-            C_param = [ param_newvars(C, p_I.vars, p_I.cfs_lfs) ]
+            C_param = [ param_newvars(C, p_I.vars, p_I.cfs_lfs; check=chk) ]
         elseif C isa AbstractVector
-            C_param =  [ param_newvars(c, p_I.vars, p_I.cfs_lfs) for c in C ]
+            C_param =  [ param_newvars(c, p_I.vars, p_I.cfs_lfs; check=chk) for c in C ]
         elseif C isa AbstractDict
-            C_param = Dict( k => param_newvars(c, p_I.vars, p_I.cfs_lfs) for (k, c) in C_param)
+            C_param = Dict( k => param_newvars(c, p_I.vars, p_I.cfs_lfs; check=chk) for (k, c) in C )
         else
            error("Control points C must be a Vector or Dict of Ideals.")
         end
@@ -199,20 +215,17 @@ function prepare_param(P,Q)
     return [ evaluate(p, gens(R)[1]) for p in param ]
 end
 
+_extra_coord(p::CurveRationalParametrization) =
+    length(p.param) > 0 ? p.param[end] : zero(parent(p.elim))
+
 # Case 1: No control points
 curve_graph(p::CurveRationalParametrization; kwargs...) =
-    _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
-                        Dict{Int, Vector{typeof(p.elim)}}(); kwargs...)
+    _compute_graph_core(p.elim, _extra_coord(p), Dict{Int, Vector{typeof(p.elim)}}(); kwargs...)
 
-# Case 2: C is a Vector of Parametrizations
-curve_graph(p::CurveRationalParametrization, C::Vector{RationalParametrization}; kwargs...) =
-    _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
-                        Dict( i => prepare_param(c, p.elim)  for (i,c) in enumerate(C)); kwargs...)
-
-# Case 3: C is a Dictionary of Parametrizations
-curve_graph(p::CurveRationalParametrization, C::Dict{Int, RationalParametrization}; kwargs...) =
-     _compute_graph_core(p.elim, length(p.param) > 0 ? p.param[end] : zero(parent(p.elim)),
-                        Dict( i => prepare_param(c, p.elim) for (i,c) in C); kwargs...)
+# Case 2: C is a Vector or a Dict of Parametrizations
+curve_graph(p::CurveRationalParametrization, C::Union{Vector{RationalParametrization}, Dict{Int, RationalParametrization}}; kwargs...) =
+    _compute_graph_core(p.elim, _extra_coord(p),
+                        Dict( i => prepare_param(c, p.elim) for (i,c) in pairs(C)); kwargs...)
 
 # =========================================================================
 # CORE IMPLEMENTATION
