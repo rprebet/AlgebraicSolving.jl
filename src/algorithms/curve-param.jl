@@ -344,59 +344,51 @@ function _find_generic_linear_forms(
     # evaluation constraint per accepted form.
     ctxs = map(ideals) do I
         F = I.gens
-        lucky_prime = first(_generate_lucky_primes(F, uZ<<30, (uZ<<31)-1, 1))
-        Itest = Ideal(change_base_ring.(Ref(GF(lucky_prime)), F))
-        DEG, DIM = hilbert_degree(Itest), dimension(Itest)
+        prime, Itest, DEG, DIM = _reference_deg_dim(F)
 
         if DIM > 0
             @assert DIM == n_gen + 1 "Input ideal(s) must define curves or empty sets"
             @assert 2*n_gen < DIM + 2 "Too many generic linear forms asked > dim + 1"
             _radical_evidence(Itest, DIM, DEG) || error("Input ideal(s) are not radical")
         end
-        # Bound on bifurcation set degree (e.g., Jelonek & Kurdyka, 2005)
+        # Bound on bifurcation set degree (e.g., Jelonek & Kurdyka, 2005),
+        # with a 2^20 margin
         max_deg = maximum(f -> total_degree(f), F; init=1)
-        bif_bound = uZ << (n * floor(Int, log2(max_deg)) + 1)
+        bif_bound = uZ << (n * ceil(Int, log2(max_deg)) + 21)
         # The data
-        Dict(:F0 => F, :F => copy(F), :lucky_prime => lucky_prime,
+        Dict(:F0 => F, :F => copy(F), :lucky_prime => prime,
              :DEG => DEG, :DIM => DIM, :bif_bound => bif_bound)
     end
 
     # 0-dim ideals (control/intersection points)
-    pctxs = Tuple{Ideal, Int}[]
+    pctxs = Tuple{Ideal, Int, ZZRingElem}[]
     for I in points
-        pr = first(_generate_lucky_primes(I.gens, uZ<<30, (uZ<<31)-1, 1))
-        Imod = Ideal(change_base_ring.(Ref(GF(pr)), I.gens))
-        @assert dimension(Imod) <= 0 "Input points must be finitely many"
-        if dimension(Imod) == 0
-            DEGp = hilbert_degree(Imod)
+        q, Imod, DEGp, DIMp = _reference_deg_dim(I.gens)
+        @assert DIMp <= 0 "Input points must be finitely many"
+        if DIMp == 0
             _radical_evidence(Imod, 0, DEGp) || error("Input point ideal(s) are not radical")
-            push!(pctxs, (_embed_extra_vars(I, n_gen), DEGp))
+            push!(pctxs, (_embed_extra_vars(I, n_gen), DEGp, q))
         end
     end
 
     cfs_lfs_out = Vector{Vector{ZZRingElem}}()
-    # Shared across all k: a candidate rejected for an earlier form also
-    # fails the (k-independent) "own fiber" test later forms are checked
-    # against (see `_is_valid_linear_form`), so it is never worth retrying.
+    # A candidate rejected for one k is rejected for further k
     stream = _candidate_stream(n_nogen)
 
     for k in 1:n_gen
-        # One fixed generic evaluation point per ideal for this step.
-        vals = map(ctxs) do c
-            val = [ZZ(), ZZ()]
-            while iszero(val[1]) || is_divisible_by(val[1], c[:lucky_prime]) || is_divisible_by(val[2], c[:lucky_prime])
-                val = rand(-c[:bif_bound]:c[:bif_bound], 2)
-            end
-            val
-        end
+        vals = Vector{Vector{ZZRingElem}}(undef, length(ctxs))
         # checks that cand is a valid lf for all ideals, and for the points
-        valid_for_all(cand) =
-            all(eachindex(ctxs)) do idx
-                c = ctxs[idx]
-                _is_valid_linear_form(c[:F], cand, vals[idx], c[:DEG], c[:DIM], k, c[:F0], cfs_lfs_out)
-            end &&
-            (k != 1 ||
-             all(pc -> _is_valid_points_form(pc[1], pc[2], vcat(cfs_lfs_out, [cand])), pctxs))
+        function valid_for_all(cand)
+            cvals = map(_draw_val, ctxs)
+            ok = all(eachindex(ctxs)) do idx
+                     c = ctxs[idx]
+                     _is_valid_linear_form(c[:F], cand, cvals[idx], c[:DEG], c[:DIM], k, c[:F0], cfs_lfs_out, c[:lucky_prime])
+                 end &&
+                 (k != 1 ||
+                  all(pc -> _is_valid_points_form(pc[1], pc[2], vcat(cfs_lfs_out, [cand]), pc[3]), pctxs))
+            ok && (vals .= cvals)
+            return ok
+        end
 
         if is_verif
             coeffs = cfs_lfs[k]
@@ -427,6 +419,25 @@ function _find_generic_linear_forms(
     end
 
     return ([c[:DEG] for c in ctxs], [c[:DIM] for c in ctxs]), cfs_lfs_out
+end
+
+# (reduction, degree, dimension) of `F` modulo `p`
+function _deg_dim(F, p)
+    Imod = Ideal(change_base_ring.(Ref(GF(p)), F))
+    return Imod, hilbert_degree(Imod), dimension(Imod)
+end
+
+# Modular degree/dimension of `F` on *at most* three primes
+function _reference_deg_dim(F)
+    uZ = one(ZZRingElem)
+    ps = _generate_lucky_primes(F, uZ<<30, (uZ<<31)-1, 3)
+    I1, D1, M1 = _deg_dim(F, ps[1])
+    I2, D2, M2 = _deg_dim(F, ps[2])
+    (D1, M1) == (D2, M2) && return ps[1], I1, D1, M1
+    _, D3, M3 = _deg_dim(F, ps[3])
+    (D3, M3) == (D1, M1) && return ps[1], I1, D1, M1
+    (D3, M3) == (D2, M2) && return ps[2], I2, D2, M2
+    error("Degree/dimension differ modulo three distinct primes")
 end
 
 # Cheap (generic) evidence of non-radicality
@@ -474,7 +485,7 @@ end
 # and unecessary technicalities
 function _validate_against_msolve(real_F, n, DEG, val)
     R = parent(first(real_F))
-    LFeval = _evalvar(real_F, n, [val[2]//val[1]])[1]
+    LFeval = _evalvar(real_F, n, [-val[2]//val[1]])[1]
     real_param = rational_parametrization(Ideal(LFeval))
     # Degenerate/empty fiber: original ideal is empty
     isempty(real_param.vars) && return true
@@ -486,12 +497,11 @@ end
 # On a 0-dim ideal `Iext` of `DEG` points, embedded and pinned
 # by the forms `cfs`: the first form (i.e. the last ring variable, the one
 # `param_newvars` parametrizes by) must separate the points.
-function _is_valid_points_form(Iext::Ideal, DEG::Int, cfs::Vector{Vector{ZZRingElem}})
+function _is_valid_points_form(Iext::Ideal, DEG::Int, cfs::Vector{Vector{ZZRingElem}}, prime)
     vars = gens(parent(Iext))
     n = length(vars)
     F = vcat(Iext.gens, transpose(cfs[1]) * vars, vars[n-1])
-    pr = first(_generate_lucky_primes(F, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
-    Imod = Ideal(change_base_ring.(Ref(GF(pr)), F))
+    Imod = Ideal(change_base_ring.(Ref(GF(prime)), F))
 
     _is_staircase_generic(Imod, n) || return false
     Imod_elim = Ideal(eliminate(Imod, n-1))
@@ -507,9 +517,19 @@ function _graph_linear_forms(curves::Vector{<:Ideal{T}},
     return cfs_lfs
 end
 
+# A generic evaluation point for the ideal `c`, avoiding 0 and multiples of
+# its working prime
+function _draw_val(c)
+    val = [ZZ(), ZZ()]
+    while iszero(val[1]) || is_divisible_by(val[1], c[:lucky_prime]) || is_divisible_by(val[2], c[:lucky_prime])
+        val = rand(-c[:bif_bound]:c[:bif_bound], 2)
+    end
+    return val
+end
+
 # Check whether `coeffs` is a generic enough linear form (the k-th one
 # to be fixed) for the ideal whose running probe system is `F`.
-function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out)
+function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out, prime)
     R = parent(first(F))
     n, vars = nvars(R), gens(R)
     L = sum(coeffs[i] * vars[i] for i in 1:n)
@@ -517,8 +537,7 @@ function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out)
     FL = vcat(F, L)
     Feval = vcat(FL, probe)
 
-    lucky_prime = first(_generate_lucky_primes(Feval, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
-    modK = GF(lucky_prime)
+    modK = GF(prime)
     Imod = Ideal(change_base_ring.(Ref(modK), 2*k <= DIM ? Feval : FL))
 
     if 2*k <= DIM
@@ -526,13 +545,7 @@ function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out)
         return dimension(Imod) == DIM - 2*k && hilbert_degree(Imod) == DEG
     else
         # --- Case B: Generic staircase + Separating Form + msolve run (2*k == DIM + 1) ---
-        # This candidate's OWN generic fiber (against the raw ideal, ignoring
-        # any previously fixed forms) must also have degree DEG, so that
-        # e.g. degree(f,1) == degree(f,2) == DEG holds for x and y alike.
-        # Note: this is exactly Case A's test at k=1 (where F == F_orig), so
-        # any candidate already rejected there fails this too -- `stream` is
-        # shared across k in `_find_generic_linear_forms` precisely so such
-        # candidates are never retried here.
+        # Intersects transversally the original variety
         if DIM > 0
             Imod0 = Ideal(change_base_ring.(Ref(modK), vcat(F_orig, L, probe)))
             dimension(Imod0) == DIM - 2 && hilbert_degree(Imod0) == DEG || return false
