@@ -33,9 +33,12 @@
 
     ## Plane curves with different topology and especially singularities ##
 
-    # Degree in x2 less than total degree
+    # Degree in x2 less than total degree: no longer an issue since the
+    # search also requires x, y to each induce a fiber of degree DEG on
+    # their own.
     I = AlgebraicSolving.Ideal([x2^2 - x1^2*(x1 + 1), x3])
-    @test_throws AssertionError curve_graph(I)
+    G = curve_graph(I)
+    @test number_of_connected_components(G) == 1
     # Apply change of variables
     I = AlgebraicSolving.Ideal([-x1^3 - 9*x1^2*x2 - x1^2 - 27*x1*x2^2 - 6*x1*x2 - 27*x2^3 - 8*x2^2, x3])
     G = curve_graph(I)

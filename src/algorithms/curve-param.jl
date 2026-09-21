@@ -375,6 +375,10 @@ function _find_generic_linear_forms(
     end
 
     cfs_lfs_out = Vector{Vector{ZZRingElem}}()
+    # Shared across all k: a candidate rejected for an earlier form also
+    # fails the (k-independent) "own fiber" test later forms are checked
+    # against (see `_is_valid_linear_form`), so it is never worth retrying.
+    stream = _candidate_stream(n_nogen)
 
     for k in 1:n_gen
         # One fixed generic evaluation point per ideal for this step.
@@ -399,9 +403,8 @@ function _find_generic_linear_forms(
             coeffs[1:n_nogen] in excluded && error("Provided linear form number $k is not distinct from an excluded one.")
             valid_for_all(coeffs) || error("Provided linear form number $k, failed the genericity test.")
         else
-            stream_k = _candidate_stream(n_nogen)
             coeffs = nothing
-            for (attempt, base) in enumerate(stream_k)
+            for (attempt, base) in enumerate(stream)
                 attempt > max_iter && break
                 base in excluded && continue # no excluded choice
                 cand = vcat(base, [-ZZ(j == k) for j in n_gen:-1:1])
@@ -509,9 +512,10 @@ end
 function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out)
     R = parent(first(F))
     n, vars = nvars(R), gens(R)
-
-    FL = vcat(F, sum(coeffs[i] * vars[i] for i in 1:n))
-    Feval = vcat(FL, val[1] * vars[n - k + 1] + val[2])
+    L = sum(coeffs[i] * vars[i] for i in 1:n)
+    probe = val[1] * vars[n - k + 1] + val[2]
+    FL = vcat(F, L)
+    Feval = vcat(FL, probe)
 
     lucky_prime = first(_generate_lucky_primes(Feval, one(ZZ)<<30, (one(ZZ)<<31)-1, 1))
     modK = GF(lucky_prime)
@@ -522,6 +526,18 @@ function _is_valid_linear_form(F, coeffs, val, DEG, DIM, k, F_orig, cfs_lfs_out)
         return dimension(Imod) == DIM - 2*k && hilbert_degree(Imod) == DEG
     else
         # --- Case B: Generic staircase + Separating Form + msolve run (2*k == DIM + 1) ---
+        # This candidate's OWN generic fiber (against the raw ideal, ignoring
+        # any previously fixed forms) must also have degree DEG, so that
+        # e.g. degree(f,1) == degree(f,2) == DEG holds for x and y alike.
+        # Note: this is exactly Case A's test at k=1 (where F == F_orig), so
+        # any candidate already rejected there fails this too -- `stream` is
+        # shared across k in `_find_generic_linear_forms` precisely so such
+        # candidates are never retried here.
+        if DIM > 0
+            Imod0 = Ideal(change_base_ring.(Ref(modK), vcat(F_orig, L, probe)))
+            dimension(Imod0) == DIM - 2 && hilbert_degree(Imod0) == DEG || return false
+        end
+
         _is_staircase_generic(Imod, n - k + 1) || return false
 
         Imod_new = Ideal(change_ringvar(Imod.gens, symbols(R)[vcat(1:n-k, n-k+2:n, n-k+1)]))

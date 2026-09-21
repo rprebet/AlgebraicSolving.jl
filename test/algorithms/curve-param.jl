@@ -37,14 +37,14 @@
     # 3. Automatic generic linear forms (Dimension 1)
     # ----------------------------------------------------
     I = AlgebraicSolving.Ideal([x1^2 - x2, x1*x3, x2 - 12])
-    elim    = y^2 - 12
-    denom   = 2*y
-    p1, p2, p3, p4 = C(24), 24*y, zero(C), 2*x*y
+    elim    = x^2 - 2*x*y + 24*x + y^2 - 24*y + 132
+    denom   = -2*x + 2*y - 24
+    p1, p2, p3, p4 = C(24), -24*x + 24*y - 288, zero(C), -2*x^2 + 2*x*y - 24*x
 
     param = curve_rational_parametrization(I)
 
     @test param.vars == [:x1, :x2, :x3, :x4, :_Z2, :_Z1]
-    @test param.cfs_lfs == Vector{ZZRingElem}[[0, 0, 0, 1, 0, -1], [1, 0, 0, 0, -1, 0]]
+    @test param.cfs_lfs == Vector{ZZRingElem}[[0, 0, 0, 1, 0, -1], [1, 1, 1, 1, -1, 0]]
     @test param.elim == elim
     @test param.denom == denom
     @test param.param == [p1, p2, p3, p4]
@@ -93,12 +93,12 @@
     I_nongen = AlgebraicSolving.Ideal([x1^2 - x2, x1*x3, x4])
     param = curve_rational_parametrization(I_nongen)
 
-    @test param.cfs_lfs == Vector{ZZRingElem}[[1, 1, 1, 1, 0, -1], [0, 1, 0, 0, -1, 0]]
-    @test param.elim == x^2*y - 2*x*y^2 + y^3 - y^2
+    @test param.cfs_lfs == Vector{ZZRingElem}[[1, 1, 1, 1, 0, -1], [2, 1, 1, 1, -1, 0]]
+    @test param.elim == -x^3 + 3*x^2*y + 2*x^2 - 3*x*y^2 - 3*x*y + y^3 + y^2
     @test param.param == QQMPolyRingElem[
-        -x*y - y^2,
-        -2*x^2*y + 2*x*y^2 + y^2,
-        x^3 - 2*x^2*y + x*y^2 - x*y,
+        -3*x^2 + 4*x*y - y^2,
+        2*x^3 - 4*x^2*y + 2*x^2 + 2*x*y^2 - 3*x*y + y^2,
+        x^3 - 2*x^2*y - 2*x^2 + x*y^2 + x*y,
         C(0)
     ]
 
@@ -119,5 +119,5 @@
     # The automatic search must still succeed on the very same curve
     param = curve_rational_parametrization(I_hard)
     @test param.vars == [:x1, :x2, :x3, :x4, :_Z2, :_Z1]
-    @test param.cfs_lfs == Vector{ZZRingElem}[[0, 1, 0, 0, 0, -1], [0, 0, 0, 1, -1, 0]]
+    @test param.cfs_lfs == Vector{ZZRingElem}[[0, 1, 0, 0, 0, -1], [1, 1, 2, 1, -1, 0]]
 end
